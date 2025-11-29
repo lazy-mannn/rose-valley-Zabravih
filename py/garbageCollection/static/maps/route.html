@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_0e64851a9a429a0693ec2a7e989cb311 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+    <div style="
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        width: 280px;
+        background-color: white;
+        border: 3px solid #007bff;
+        border-radius: 10px;
+        padding: 15px;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        z-index: 9999;
+    ">
+        <h4 style="margin: 0 0 15px 0; color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 8px;">
+            📊 Route Summary
+        </h4>
+        <div style="font-size: 14px; line-height: 1.8;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span><strong>Total Routes:</strong></span>
+                <span style="color: #007bff; font-weight: bold;">2</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span><strong>Bins to Collect:</strong></span>
+                <span style="color: #dc3545; font-weight: bold;">11</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span><strong>Truck Capacity:</strong></span>
+                <span style="color: #28a745; font-weight: bold;">10 bins</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span><strong>Total Distance:</strong></span>
+                <span style="color: #ffc107; font-weight: bold;">2.0 km</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <span><strong>Total Duration:</strong></span>
+                <span style="color: #17a2b8; font-weight: bold;">4 min</span>
+            </div>
+            <div style="border-top: 2px solid #e9ecef; padding-top: 10px;">
+                <div style="font-size: 12px; color: #6c757d;">
+                    <strong>Route Legend:</strong><br>
+                    <span style="color: blue;">●</span> Route 1: 10 bins<br><span style="color: red;">●</span> Route 2: 1 bins
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    
+            <div class="folium-map" id="map_0e64851a9a429a0693ec2a7e989cb311" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_0e64851a9a429a0693ec2a7e989cb311 = L.map(
+                "map_0e64851a9a429a0693ec2a7e989cb311",
+                {
+                    center: [42.62204372261856, 25.395489028007734],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 13,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_46b62824c452168fd3c8de4b8a33b70f = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_46b62824c452168fd3c8de4b8a33b70f.addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var marker_29157bf356ac5767fae5b4402f088738 = L.marker(
+                [42.6181, 25.3954],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_72e74320e52f5e9b3e4176ea3d654a2a = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "green",
+  "iconColor": "white",
+  "icon": "home",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_81d035139668bdfdee9000d0a9876ab6 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_178365fb7c0e82ad9e23bb52259ef275 = $(`<div id="html_178365fb7c0e82ad9e23bb52259ef275" style="width: 100.0%; height: 100.0%;"><b>Depot (Starting Point)</b><br>Start here</div>`)[0];
+                popup_81d035139668bdfdee9000d0a9876ab6.setContent(html_178365fb7c0e82ad9e23bb52259ef275);
+            
+        
+
+        marker_29157bf356ac5767fae5b4402f088738.bindPopup(popup_81d035139668bdfdee9000d0a9876ab6)
+        ;
+
+        
+    
+    
+            marker_29157bf356ac5767fae5b4402f088738.bindTooltip(
+                `<div>
+                     Depot (Starting Point)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_29157bf356ac5767fae5b4402f088738.setIcon(icon_72e74320e52f5e9b3e4176ea3d654a2a);
+            
+    
+            var marker_1c3fe9b7a6c2f7cd6207df05f28ca341 = L.marker(
+                [42.625, 25.4],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_cd00c195e664152443751a8853d9a458 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "black",
+  "iconColor": "white",
+  "icon": "recycle",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_06e15972f3107ab5e55c53f6a824b3e8 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_210654d0c1159f53bca55fed3b4253bf = $(`<div id="html_210654d0c1159f53bca55fed3b4253bf" style="width: 100.0%; height: 100.0%;"><b>Landfill (Disposal Site)</b><br>End here</div>`)[0];
+                popup_06e15972f3107ab5e55c53f6a824b3e8.setContent(html_210654d0c1159f53bca55fed3b4253bf);
+            
+        
+
+        marker_1c3fe9b7a6c2f7cd6207df05f28ca341.bindPopup(popup_06e15972f3107ab5e55c53f6a824b3e8)
+        ;
+
+        
+    
+    
+            marker_1c3fe9b7a6c2f7cd6207df05f28ca341.bindTooltip(
+                `<div>
+                     Landfill (Disposal Site)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_1c3fe9b7a6c2f7cd6207df05f28ca341.setIcon(icon_cd00c195e664152443751a8853d9a458);
+            
+    
+            var marker_97e2fe306c362fcbb96603f26228ee86 = L.marker(
+                [42.62337715947338, 25.393733907311518],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_da4b5c43b9854d69b06b7ba06fe22bd6 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_5cd336dbc6ffdaaae9553863c226621d = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_560bfe7053fce1425b925db5684a2119 = $(`<div id="html_560bfe7053fce1425b925db5684a2119" style="width: 100.0%; height: 100.0%;">Route 1, Stop 1<br>Bin ID: 5</div>`)[0];
+                popup_5cd336dbc6ffdaaae9553863c226621d.setContent(html_560bfe7053fce1425b925db5684a2119);
+            
+        
+
+        marker_97e2fe306c362fcbb96603f26228ee86.bindPopup(popup_5cd336dbc6ffdaaae9553863c226621d)
+        ;
+
+        
+    
+    
+                marker_97e2fe306c362fcbb96603f26228ee86.setIcon(icon_da4b5c43b9854d69b06b7ba06fe22bd6);
+            
+    
+            var marker_7e43480b95a37874aac328c0ab4528f8 = L.marker(
+                [42.62322715947338, 25.393733907311518],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_3f7146b31c70256b2f0fd3d18fc7d96a = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        1\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_7e43480b95a37874aac328c0ab4528f8.setIcon(div_icon_3f7146b31c70256b2f0fd3d18fc7d96a);
+            
+    
+            var marker_99097cb416dea2edcf65da0de67294ce = L.marker(
+                [42.62089123456789, 25.39512345678901],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_8c1d1d7e3c55968d2674e4743e0a629c = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_306c9b6afad86d2ad6c25ad1801b4b32 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_49a0a8385ef0f38faa2fe6f1b240cf27 = $(`<div id="html_49a0a8385ef0f38faa2fe6f1b240cf27" style="width: 100.0%; height: 100.0%;">Route 1, Stop 2<br>Bin ID: 7</div>`)[0];
+                popup_306c9b6afad86d2ad6c25ad1801b4b32.setContent(html_49a0a8385ef0f38faa2fe6f1b240cf27);
+            
+        
+
+        marker_99097cb416dea2edcf65da0de67294ce.bindPopup(popup_306c9b6afad86d2ad6c25ad1801b4b32)
+        ;
+
+        
+    
+    
+                marker_99097cb416dea2edcf65da0de67294ce.setIcon(icon_8c1d1d7e3c55968d2674e4743e0a629c);
+            
+    
+            var marker_dd0b758aaff6ae3075c45f79f903c340 = L.marker(
+                [42.620741234567895, 25.39512345678901],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_39afc23aa5e1e0d60a31742c7fdfb51d = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        2\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_dd0b758aaff6ae3075c45f79f903c340.setIcon(div_icon_39afc23aa5e1e0d60a31742c7fdfb51d);
+            
+    
+            var marker_1e0cd0edd6008c26ef792510bc70d226 = L.marker(
+                [42.622, 25.3965],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_14d230bb2e6c1ab5a50b0ca8f2e7d4ec = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_78e5a300beac546a6d0e665651057c34 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_4d9110c419e3e1a6cee3b29acd96b376 = $(`<div id="html_4d9110c419e3e1a6cee3b29acd96b376" style="width: 100.0%; height: 100.0%;">Route 1, Stop 3<br>Bin ID: 12</div>`)[0];
+                popup_78e5a300beac546a6d0e665651057c34.setContent(html_4d9110c419e3e1a6cee3b29acd96b376);
+            
+        
+
+        marker_1e0cd0edd6008c26ef792510bc70d226.bindPopup(popup_78e5a300beac546a6d0e665651057c34)
+        ;
+
+        
+    
+    
+                marker_1e0cd0edd6008c26ef792510bc70d226.setIcon(icon_14d230bb2e6c1ab5a50b0ca8f2e7d4ec);
+            
+    
+            var marker_52a9cf193865ba2f00a745aa2e76e38a = L.marker(
+                [42.62185, 25.3965],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_c5819c16fd6f82d3b881cc7cdde623a5 = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        3\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_52a9cf193865ba2f00a745aa2e76e38a.setIcon(div_icon_c5819c16fd6f82d3b881cc7cdde623a5);
+            
+    
+            var marker_89a71f071da68eb38d28937abc7bb63d = L.marker(
+                [42.6232, 25.393],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_da3acfd2482172d590621932801d4ec1 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_c70edd2c3c2fe260023976ba5b435afd = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_2d4ee3432ae35927e81288fe641f55a9 = $(`<div id="html_2d4ee3432ae35927e81288fe641f55a9" style="width: 100.0%; height: 100.0%;">Route 1, Stop 4<br>Bin ID: 24</div>`)[0];
+                popup_c70edd2c3c2fe260023976ba5b435afd.setContent(html_2d4ee3432ae35927e81288fe641f55a9);
+            
+        
+
+        marker_89a71f071da68eb38d28937abc7bb63d.bindPopup(popup_c70edd2c3c2fe260023976ba5b435afd)
+        ;
+
+        
+    
+    
+                marker_89a71f071da68eb38d28937abc7bb63d.setIcon(icon_da3acfd2482172d590621932801d4ec1);
+            
+    
+            var marker_26040516bbde21a69e9379a91713212e = L.marker(
+                [42.62305, 25.393],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_145fc800db0baf8b0529874f99da0c51 = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        4\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_26040516bbde21a69e9379a91713212e.setIcon(div_icon_145fc800db0baf8b0529874f99da0c51);
+            
+    
+            var marker_81f8790af2b9776ad9fd1d8f9af67e53 = L.marker(
+                [42.6238, 25.3958],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_1453cd2cc46f656c54e19a4b8b1ea8e0 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_b1bd6f070d0abdde63ba241d4d4d16cd = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_660e6e93f37cfff2b21da2bc5b9a82f5 = $(`<div id="html_660e6e93f37cfff2b21da2bc5b9a82f5" style="width: 100.0%; height: 100.0%;">Route 1, Stop 5<br>Bin ID: 26</div>`)[0];
+                popup_b1bd6f070d0abdde63ba241d4d4d16cd.setContent(html_660e6e93f37cfff2b21da2bc5b9a82f5);
+            
+        
+
+        marker_81f8790af2b9776ad9fd1d8f9af67e53.bindPopup(popup_b1bd6f070d0abdde63ba241d4d4d16cd)
+        ;
+
+        
+    
+    
+                marker_81f8790af2b9776ad9fd1d8f9af67e53.setIcon(icon_1453cd2cc46f656c54e19a4b8b1ea8e0);
+            
+    
+            var marker_c62dd282f5db5d0de25d76dd6c63a10c = L.marker(
+                [42.623650000000005, 25.3958],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_9bd5358d260d2a36abd884732dd8384f = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        5\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_c62dd282f5db5d0de25d76dd6c63a10c.setIcon(div_icon_9bd5358d260d2a36abd884732dd8384f);
+            
+    
+            var marker_ab39c8b4741720bae2c7a6f2c3d8abe9 = L.marker(
+                [42.6202, 25.3933],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_a61fdcfb6926cbd422d3cfed4216b5b5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_2ecb800b00fb046ca48c266c0515a853 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_358fb0983059813e69fab7f4eb95e0cf = $(`<div id="html_358fb0983059813e69fab7f4eb95e0cf" style="width: 100.0%; height: 100.0%;">Route 1, Stop 6<br>Bin ID: 29</div>`)[0];
+                popup_2ecb800b00fb046ca48c266c0515a853.setContent(html_358fb0983059813e69fab7f4eb95e0cf);
+            
+        
+
+        marker_ab39c8b4741720bae2c7a6f2c3d8abe9.bindPopup(popup_2ecb800b00fb046ca48c266c0515a853)
+        ;
+
+        
+    
+    
+                marker_ab39c8b4741720bae2c7a6f2c3d8abe9.setIcon(icon_a61fdcfb6926cbd422d3cfed4216b5b5);
+            
+    
+            var marker_131cae46fe2b2c6be5665b43d3b27182 = L.marker(
+                [42.62005, 25.3933],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_d9cccfab99d7dd24194464d4bd9d48aa = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        6\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_131cae46fe2b2c6be5665b43d3b27182.setIcon(div_icon_d9cccfab99d7dd24194464d4bd9d48aa);
+            
+    
+            var marker_7f912c0788f38d2f8fabaf4342dfe684 = L.marker(
+                [42.6214, 25.3928],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_b5f5e8836bd117b7498d62bb2a27527e = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e4ab915b1553ae6e936a9133c6b3d8a5 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_6b06bf608274df3e53c94218c31ab599 = $(`<div id="html_6b06bf608274df3e53c94218c31ab599" style="width: 100.0%; height: 100.0%;">Route 1, Stop 7<br>Bin ID: 31</div>`)[0];
+                popup_e4ab915b1553ae6e936a9133c6b3d8a5.setContent(html_6b06bf608274df3e53c94218c31ab599);
+            
+        
+
+        marker_7f912c0788f38d2f8fabaf4342dfe684.bindPopup(popup_e4ab915b1553ae6e936a9133c6b3d8a5)
+        ;
+
+        
+    
+    
+                marker_7f912c0788f38d2f8fabaf4342dfe684.setIcon(icon_b5f5e8836bd117b7498d62bb2a27527e);
+            
+    
+            var marker_fb5076681242b4c4d85d7ae990ceebf9 = L.marker(
+                [42.62125, 25.3928],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_91b2009afa3ec0e7d24922106eace62f = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        7\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_fb5076681242b4c4d85d7ae990ceebf9.setIcon(div_icon_91b2009afa3ec0e7d24922106eace62f);
+            
+    
+            var marker_6bf7ec0ce3dfc420ae6f2dc995dcc25b = L.marker(
+                [42.6206, 25.3978],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_fabb90365d47b69860b209e60cd5e921 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_bec1e4b549169dcc06ea909c8ae6fb3e = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_711f9146ea94196a04f5de2adbcbc2b2 = $(`<div id="html_711f9146ea94196a04f5de2adbcbc2b2" style="width: 100.0%; height: 100.0%;">Route 1, Stop 8<br>Bin ID: 33</div>`)[0];
+                popup_bec1e4b549169dcc06ea909c8ae6fb3e.setContent(html_711f9146ea94196a04f5de2adbcbc2b2);
+            
+        
+
+        marker_6bf7ec0ce3dfc420ae6f2dc995dcc25b.bindPopup(popup_bec1e4b549169dcc06ea909c8ae6fb3e)
+        ;
+
+        
+    
+    
+                marker_6bf7ec0ce3dfc420ae6f2dc995dcc25b.setIcon(icon_fabb90365d47b69860b209e60cd5e921);
+            
+    
+            var marker_0a0c632f6130dba1adaa3c7efade6285 = L.marker(
+                [42.620450000000005, 25.3978],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_58ea04449243704ae0deb19bf1e9d6aa = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        8\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_0a0c632f6130dba1adaa3c7efade6285.setIcon(div_icon_58ea04449243704ae0deb19bf1e9d6aa);
+            
+    
+            var marker_b88c94ddb0b8f1d672c8c77255bfebb1 = L.marker(
+                [42.6244, 25.3928],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_59e8254797cdc0bd32b7658353de16e5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_08e2b04a1366c8cb63e3ab266cb80c41 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_064ec2bf14404f007cefc5ca053646b8 = $(`<div id="html_064ec2bf14404f007cefc5ca053646b8" style="width: 100.0%; height: 100.0%;">Route 1, Stop 9<br>Bin ID: 42</div>`)[0];
+                popup_08e2b04a1366c8cb63e3ab266cb80c41.setContent(html_064ec2bf14404f007cefc5ca053646b8);
+            
+        
+
+        marker_b88c94ddb0b8f1d672c8c77255bfebb1.bindPopup(popup_08e2b04a1366c8cb63e3ab266cb80c41)
+        ;
+
+        
+    
+    
+                marker_b88c94ddb0b8f1d672c8c77255bfebb1.setIcon(icon_59e8254797cdc0bd32b7658353de16e5);
+            
+    
+            var marker_7b97f23cad641e2546d99b370ca66b0d = L.marker(
+                [42.62425, 25.3928],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_6ad52eb71a7ebe1867450a1733a8fb2f = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        9\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_7b97f23cad641e2546d99b370ca66b0d.setIcon(div_icon_6ad52eb71a7ebe1867450a1733a8fb2f);
+            
+    
+            var marker_422c436a389ff0181e172647ee2cd8d7 = L.marker(
+                [42.624, 25.3983],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_f0320f45eb2a367340cc88a7531585c9 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_a5c9f21158107cfbc6c5ae08e1a56600 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_6b4d3e3411f52f369a82b89e4c11ba4c = $(`<div id="html_6b4d3e3411f52f369a82b89e4c11ba4c" style="width: 100.0%; height: 100.0%;">Route 1, Stop 10<br>Bin ID: 45</div>`)[0];
+                popup_a5c9f21158107cfbc6c5ae08e1a56600.setContent(html_6b4d3e3411f52f369a82b89e4c11ba4c);
+            
+        
+
+        marker_422c436a389ff0181e172647ee2cd8d7.bindPopup(popup_a5c9f21158107cfbc6c5ae08e1a56600)
+        ;
+
+        
+    
+    
+                marker_422c436a389ff0181e172647ee2cd8d7.setIcon(icon_f0320f45eb2a367340cc88a7531585c9);
+            
+    
+            var marker_5b3cdb009af7dee313e53d95fccb6d30 = L.marker(
+                [42.623850000000004, 25.3983],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_43d4eada8aadcda5310bb67e727e3e3c = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: blue;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        10\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_5b3cdb009af7dee313e53d95fccb6d30.setIcon(div_icon_43d4eada8aadcda5310bb67e727e3e3c);
+            
+    
+        function geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "blue", "opacity": 0.7, "weight": 4};
+            }
+        }
+
+        function geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74 = L.geoJson(null, {
+                onEachFeature: geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74_onEachFeature,
+            
+                style: geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74_styler,
+            ...{
+}
+        });
+
+        function geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74_add (data) {
+            geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74
+                .addData(data);
+        }
+            geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74_add({"bbox": [25.390545, 42.618056, 25.399972, 42.626824], "features": [{"bbox": [25.390545, 42.618056, 25.399972, 42.626824], "geometry": {"coordinates": [[25.395397, 42.618124], [25.395253, 42.618114], [25.394464, 42.618056], [25.39446, 42.618736], [25.395025, 42.61875], [25.395881, 42.618858], [25.396229, 42.618917], [25.395907, 42.619481], [25.395649, 42.619859], [25.395555, 42.619999], [25.395309, 42.620278], [25.395263, 42.620334], [25.394941, 42.620702], [25.394419, 42.621294], [25.394392, 42.621349], [25.394441, 42.621382], [25.394455, 42.62143], [25.394423, 42.621479], [25.394392, 42.621495], [25.394461, 42.621587], [25.394456, 42.621676], [25.394291, 42.622435], [25.394035, 42.622563], [25.393733, 42.623205], [25.393662, 42.623359], [25.393562, 42.623577], [25.391804, 42.623629], [25.39185, 42.62306], [25.391958, 42.622248], [25.391966, 42.622142], [25.393104, 42.621988], [25.393404, 42.621905], [25.393664, 42.621771], [25.394178, 42.621502], [25.394239, 42.621444], [25.394265, 42.62137], [25.394358, 42.621343], [25.394392, 42.621349], [25.394419, 42.621294], [25.394877, 42.620774], [25.394941, 42.620702], [25.395263, 42.620334], [25.396047, 42.620686], [25.396701, 42.620955], [25.396091, 42.621762], [25.39654, 42.621947], [25.396091, 42.621762], [25.395984, 42.62189], [25.395327, 42.621694], [25.394455, 42.62143], [25.394423, 42.621479], [25.394392, 42.621495], [25.394461, 42.621587], [25.394456, 42.621676], [25.394291, 42.622435], [25.394035, 42.622563], [25.391958, 42.622248], [25.391727, 42.622175], [25.39095, 42.622258], [25.390545, 42.622295], [25.390656, 42.622889], [25.39185, 42.62306], [25.393007, 42.623149], [25.393733, 42.623205], [25.393562, 42.623577], [25.394333, 42.623593], [25.395034, 42.623606], [25.3958, 42.6238], [25.396103, 42.623878], [25.396485, 42.623946], [25.396581, 42.62394], [25.396669, 42.623915], [25.396836, 42.623757], [25.396586, 42.623527], [25.396116, 42.623181], [25.395551, 42.622851], [25.394291, 42.622435], [25.394035, 42.622563], [25.391958, 42.622248], [25.391966, 42.622142], [25.393104, 42.621988], [25.393404, 42.621905], [25.393664, 42.621771], [25.393296, 42.621306], [25.39228, 42.621241], [25.392057, 42.621025], [25.391699, 42.620682], [25.392583, 42.620643], [25.392572, 42.620477], [25.392532, 42.620334], [25.39248, 42.620238], [25.392418, 42.62019], [25.392781, 42.619989], [25.392418, 42.62019], [25.391923, 42.620421], [25.391796, 42.620494], [25.391776, 42.620591], [25.391699, 42.620682], [25.392057, 42.621025], [25.391033, 42.621706], [25.391636, 42.622081], [25.391727, 42.622175], [25.391966, 42.622142], [25.393104, 42.621988], [25.393404, 42.621905], [25.393664, 42.621771], [25.393296, 42.621306], [25.392815, 42.621275], [25.39228, 42.621241], [25.392057, 42.621025], [25.391033, 42.621706], [25.391636, 42.622081], [25.391727, 42.622175], [25.391966, 42.622142], [25.393104, 42.621988], [25.393404, 42.621905], [25.393664, 42.621771], [25.394178, 42.621502], [25.394239, 42.621444], [25.394265, 42.62137], [25.394358, 42.621343], [25.394392, 42.621349], [25.394419, 42.621294], [25.394941, 42.620702], [25.395263, 42.620334], [25.396047, 42.620686], [25.396701, 42.620955], [25.397191, 42.621134], [25.398451, 42.621422], [25.398817, 42.620579], [25.398994, 42.620236], [25.398655, 42.620105], [25.398201, 42.62065], [25.397797, 42.620627], [25.397533, 42.620611], [25.397421, 42.620593], [25.397058, 42.620448], [25.396905, 42.620645], [25.396701, 42.620955], [25.396047, 42.620686], [25.395263, 42.620334], [25.394941, 42.620702], [25.394419, 42.621294], [25.394392, 42.621349], [25.394441, 42.621382], [25.394455, 42.62143], [25.394423, 42.621479], [25.394392, 42.621495], [25.394461, 42.621587], [25.394456, 42.621676], [25.394291, 42.622435], [25.394035, 42.622563], [25.393733, 42.623205], [25.393562, 42.623577], [25.393341, 42.623848], [25.393124, 42.624124], [25.393008, 42.624441], [25.392843, 42.624894], [25.392449, 42.626042], [25.392211, 42.626824], [25.394421, 42.626615], [25.394811, 42.626578], [25.39488, 42.626571], [25.395183, 42.626507], [25.395475, 42.626416], [25.39569, 42.62631], [25.395887, 42.62617], [25.396139, 42.625898], [25.39624, 42.625736], [25.396665, 42.625112], [25.396921, 42.624703], [25.397176, 42.624111], [25.39726, 42.624204], [25.397456, 42.624381], [25.397504, 42.62443], [25.398077, 42.624866], [25.398191, 42.624913], [25.398331, 42.624912], [25.398778, 42.624749], [25.398676, 42.624528], [25.398742, 42.624271], [25.398819, 42.624156], [25.398864, 42.624008], [25.398775, 42.623853], [25.398864, 42.624008], [25.398819, 42.624156], [25.398742, 42.624271], [25.398676, 42.624528], [25.398778, 42.624749], [25.39885, 42.62472], [25.39901, 42.624846], [25.399285, 42.624969], [25.399695, 42.625091], [25.399972, 42.625125]], "type": "LineString"}, "id": "0", "properties": {"segments": [{"distance": 855.5, "duration": 109.5, "steps": [{"distance": 76.7, "duration": 18.4, "instruction": "Head west on \u041f\u0435\u0439\u043e \u042f\u0432\u043e\u0440\u043e\u0432", "name": "\u041f\u0435\u0439\u043e \u042f\u0432\u043e\u0440\u043e\u0432", "type": 11, "way_points": [0, 2]}, {"distance": 75.7, "duration": 18.2, "instruction": "Turn right onto \u0419\u043e\u0440\u0434\u0430\u043d \u0421\u0442\u0430\u0442\u0435\u043b\u043e\u0432", "name": "\u0419\u043e\u0440\u0434\u0430\u043d \u0421\u0442\u0430\u0442\u0435\u043b\u043e\u0432", "type": 1, "way_points": [2, 3]}, {"distance": 146.5, "duration": 13.2, "instruction": "Turn right onto \u041a\u043d\u044f\u0437 \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u044a\u0440 \u0411\u0430\u0442\u0435\u043d\u0431\u0435\u0440\u0433", "name": "\u041a\u043d\u044f\u0437 \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u044a\u0440 \u0411\u0430\u0442\u0435\u043d\u0431\u0435\u0440\u0433", "type": 1, "way_points": [3, 6]}, {"distance": 310.4, "duration": 27.9, "instruction": "Turn left onto \u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "name": "\u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "type": 0, "way_points": [6, 14]}, {"distance": 127.2, "duration": 12.2, "exit_number": 2, "instruction": "Enter the roundabout and take the 2nd exit onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 7, "way_points": [14, 21]}, {"distance": 119.0, "duration": 19.6, "instruction": "Turn left onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 0, "way_points": [21, 24]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u041e\u0440\u0435\u0448\u0430\u043a\u0430, on the right", "name": "-", "type": 10, "way_points": [24, 24]}]}, {"distance": 637.1, "duration": 102.5, "steps": [{"distance": 25.5, "duration": 3.7, "instruction": "Head north on \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 11, "way_points": [24, 25]}, {"distance": 144.0, "duration": 34.6, "instruction": "Turn left onto \u041f\u0435\u0440\u043d\u0438\u043a", "name": "\u041f\u0435\u0440\u043d\u0438\u043a", "type": 0, "way_points": [25, 26]}, {"distance": 165.9, "duration": 39.8, "instruction": "Turn left onto \u0411\u0443\u0437\u043b\u0443\u0434\u0436\u0430", "name": "\u0411\u0443\u0437\u043b\u0443\u0434\u0436\u0430", "type": 0, "way_points": [26, 29]}, {"distance": 206.7, "duration": 16.5, "instruction": "Turn left onto \u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "name": "\u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "type": 0, "way_points": [29, 34]}, {"distance": 95.0, "duration": 8.0, "exit_number": 1, "instruction": "Enter the roundabout and take the 1st exit onto \u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "name": "\u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "type": 7, "way_points": [34, 39]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439, on the left", "name": "-", "type": 10, "way_points": [39, 39]}]}, {"distance": 339.5, "duration": 52.3, "steps": [{"distance": 58.3, "duration": 5.2, "instruction": "Head southeast on \u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "name": "\u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "type": 11, "way_points": [39, 41]}, {"distance": 136.4, "duration": 12.3, "instruction": "Turn left onto \u0421\u0432. \u041e\u0442\u0435\u0446 \u041f\u0430\u0438\u0441\u0438\u0439", "name": "\u0421\u0432. \u041e\u0442\u0435\u0446 \u041f\u0430\u0438\u0441\u0438\u0439", "type": 0, "way_points": [41, 43]}, {"distance": 102.7, "duration": 24.6, "instruction": "Turn left onto \u0421\u043b\u0430\u0432\u044f\u043d\u0441\u043a\u0430", "name": "\u0421\u043b\u0430\u0432\u044f\u043d\u0441\u043a\u0430", "type": 0, "way_points": [43, 44]}, {"distance": 42.2, "duration": 10.1, "instruction": "Turn right", "name": "-", "type": 1, "way_points": [44, 45]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at your destination, on the left", "name": "-", "type": 10, "way_points": [45, 45]}]}, {"distance": 888.5, "duration": 134.3, "steps": [{"distance": 42.2, "duration": 10.1, "instruction": "Head southwest", "name": "-", "type": 11, "way_points": [45, 46]}, {"distance": 16.7, "duration": 4.0, "instruction": "Turn right onto \u0421\u043b\u0430\u0432\u044f\u043d\u0441\u043a\u0430", "name": "\u0421\u043b\u0430\u0432\u044f\u043d\u0441\u043a\u0430", "type": 1, "way_points": [46, 47]}, {"distance": 135.1, "duration": 32.4, "instruction": "Turn left onto \u0427\u0443\u0434\u043e\u043c\u0438\u0440", "name": "\u0427\u0443\u0434\u043e\u043c\u0438\u0440", "type": 0, "way_points": [47, 49]}, {"distance": 116.2, "duration": 11.6, "exit_number": 1, "instruction": "Enter the roundabout and take the 1st exit onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 7, "way_points": [49, 54]}, {"distance": 219.3, "duration": 21.6, "instruction": "Turn left onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 0, "way_points": [54, 57]}, {"distance": 97.7, "duration": 15.3, "instruction": "Turn slight right onto \u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "name": "\u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "type": 5, "way_points": [57, 59]}, {"distance": 66.6, "duration": 16.0, "instruction": "Turn right onto \u041f\u0435\u0442\u043a\u043e \u0414. \u041f\u0435\u0442\u043a\u043e\u0432", "name": "\u041f\u0435\u0442\u043a\u043e \u0414. \u041f\u0435\u0442\u043a\u043e\u0432", "type": 1, "way_points": [59, 60]}, {"distance": 194.7, "duration": 23.4, "instruction": "Turn right onto \u041a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u0438\u043d \u0418\u0440\u0435\u0447\u0435\u043a", "name": "\u041a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u0438\u043d \u0418\u0440\u0435\u0447\u0435\u043a", "type": 1, "way_points": [60, 62]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u041a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u0438\u043d \u0418\u0440\u0435\u0447\u0435\u043a, on the left", "name": "-", "type": 10, "way_points": [62, 62]}]}, {"distance": 290.2, "duration": 58.3, "steps": [{"distance": 59.7, "duration": 7.2, "instruction": "Head east on \u041a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u0438\u043d \u0418\u0440\u0435\u0447\u0435\u043a", "name": "\u041a\u043e\u043d\u0441\u0442\u0430\u043d\u0442\u0438\u043d \u0418\u0440\u0435\u0447\u0435\u043a", "type": 11, "way_points": [62, 63]}, {"distance": 43.7, "duration": 6.3, "instruction": "Turn left onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 0, "way_points": [63, 64]}, {"distance": 186.8, "duration": 44.8, "instruction": "Turn sharp right onto \u0427\u0430\u0432\u0434\u0430\u0440 \u0412\u043e\u0439\u0432\u043e\u0434\u0430", "name": "\u0427\u0430\u0432\u0434\u0430\u0440 \u0412\u043e\u0439\u0432\u043e\u0434\u0430", "type": 3, "way_points": [64, 67]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u0427\u0430\u0432\u0434\u0430\u0440 \u0412\u043e\u0439\u0432\u043e\u0434\u0430, on the left", "name": "-", "type": 10, "way_points": [67, 67]}]}, {"distance": 1097.7, "duration": 173.3, "steps": [{"distance": 96.3, "duration": 23.1, "instruction": "Head east on \u0427\u0430\u0432\u0434\u0430\u0440 \u0412\u043e\u0439\u0432\u043e\u0434\u0430", "name": "\u0427\u0430\u0432\u0434\u0430\u0440 \u0412\u043e\u0439\u0432\u043e\u0434\u0430", "type": 11, "way_points": [67, 72]}, {"distance": 259.2, "duration": 23.3, "instruction": "Turn right onto \u041b\u044e\u0431\u043e\u043c\u0438\u0440 \u041a\u0430\u0431\u0430\u043a\u0447\u0438\u0435\u0432", "name": "\u041b\u044e\u0431\u043e\u043c\u0438\u0440 \u041a\u0430\u0431\u0430\u043a\u0447\u0438\u0435\u0432", "type": 1, "way_points": [72, 76]}, {"distance": 198.8, "duration": 19.9, "instruction": "Turn right onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 1, "way_points": [76, 78]}, {"distance": 11.9, "duration": 2.8, "instruction": "Turn left onto \u0411\u0443\u0437\u043b\u0443\u0434\u0436\u0430", "name": "\u0411\u0443\u0437\u043b\u0443\u0434\u0436\u0430", "type": 0, "way_points": [78, 79]}, {"distance": 146.8, "duration": 11.7, "instruction": "Turn left onto \u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "name": "\u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "type": 0, "way_points": [79, 82]}, {"distance": 143.3, "duration": 34.4, "instruction": "Turn right onto \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "name": "\u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "type": 1, "way_points": [82, 84]}, {"distance": 241.5, "duration": 57.9, "instruction": "Turn left onto \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "name": "\u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "type": 0, "way_points": [84, 92]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e, on the left", "name": "-", "type": 10, "way_points": [92, 92]}]}, {"distance": 625.7, "duration": 123.5, "steps": [{"distance": 169.3, "duration": 40.6, "instruction": "Head northwest", "name": "-", "type": 11, "way_points": [92, 98]}, {"distance": 112.9, "duration": 27.1, "instruction": "Turn left onto \u041b\u044e\u0431\u0435\u043d \u041a\u0430\u0440\u0430\u0432\u0435\u043b\u043e\u0432", "name": "\u041b\u044e\u0431\u0435\u043d \u041a\u0430\u0440\u0430\u0432\u0435\u043b\u043e\u0432", "type": 0, "way_points": [98, 99]}, {"distance": 77.5, "duration": 18.6, "instruction": "Turn right onto \u041c\u0430\u043a\u0435\u0434\u043e\u043d\u0438\u044f", "name": "\u041c\u0430\u043a\u0435\u0434\u043e\u043d\u0438\u044f", "type": 1, "way_points": [99, 101]}, {"distance": 166.7, "duration": 13.3, "instruction": "Turn right onto \u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "name": "\u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "type": 1, "way_points": [101, 105]}, {"distance": 99.3, "duration": 23.8, "instruction": "Turn right onto \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "name": "\u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "type": 1, "way_points": [105, 107]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e, on the right", "name": "-", "type": 10, "way_points": [107, 107]}]}, {"distance": 1208.2, "duration": 165.9, "steps": [{"distance": 44.0, "duration": 10.6, "instruction": "Head west on \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "name": "\u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "type": 11, "way_points": [107, 108]}, {"distance": 30.1, "duration": 7.2, "instruction": "Turn left onto \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "name": "\u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0413\u0443\u0440\u043a\u043e", "type": 0, "way_points": [108, 109]}, {"distance": 112.9, "duration": 27.1, "instruction": "Turn right onto \u041b\u044e\u0431\u0435\u043d \u041a\u0430\u0440\u0430\u0432\u0435\u043b\u043e\u0432", "name": "\u041b\u044e\u0431\u0435\u043d \u041a\u0430\u0440\u0430\u0432\u0435\u043b\u043e\u0432", "type": 1, "way_points": [109, 110]}, {"distance": 77.5, "duration": 18.6, "instruction": "Turn right onto \u041c\u0430\u043a\u0435\u0434\u043e\u043d\u0438\u044f", "name": "\u041c\u0430\u043a\u0435\u0434\u043e\u043d\u0438\u044f", "type": 1, "way_points": [110, 112]}, {"distance": 226.5, "duration": 18.1, "instruction": "Turn right onto \u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "name": "\u0428\u0438\u043f\u0447\u0435\u043d\u0441\u043a\u0430 \u0435\u043f\u043e\u043f\u0435\u044f", "type": 1, "way_points": [112, 118]}, {"distance": 153.2, "duration": 13.2, "exit_number": 1, "instruction": "Enter the roundabout and take the 1st exit onto \u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "name": "\u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "type": 7, "way_points": [118, 124]}, {"distance": 289.2, "duration": 26.0, "instruction": "Turn left onto \u0421\u0432. \u041e\u0442\u0435\u0446 \u041f\u0430\u0438\u0441\u0438\u0439", "name": "\u0421\u0432. \u041e\u0442\u0435\u0446 \u041f\u0430\u0438\u0441\u0438\u0439", "type": 0, "way_points": [124, 128]}, {"distance": 139.2, "duration": 12.5, "instruction": "Turn right onto \u041d\u0438\u043a\u043e\u043b\u0430 \u041f\u0435\u0442\u043a\u043e\u0432, 5", "name": "\u041d\u0438\u043a\u043e\u043b\u0430 \u041f\u0435\u0442\u043a\u043e\u0432, 5", "type": 1, "way_points": [128, 130]}, {"distance": 31.3, "duration": 7.5, "instruction": "Turn right onto \u0422\u0440\u0430\u043f\u0435\u0437\u0438\u0446\u0430", "name": "\u0422\u0440\u0430\u043f\u0435\u0437\u0438\u0446\u0430", "type": 1, "way_points": [130, 131]}, {"distance": 104.3, "duration": 25.0, "instruction": "Turn right", "name": "-", "type": 1, "way_points": [131, 133]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at your destination, on the right", "name": "-", "type": 10, "way_points": [133, 133]}]}, {"distance": 777.3, "duration": 106.0, "steps": [{"distance": 64.9, "duration": 15.6, "instruction": "Head west", "name": "-", "type": 11, "way_points": [133, 136]}, {"distance": 63.5, "duration": 15.2, "instruction": "Turn right onto \u0421\u043b\u0430\u0432\u044f\u043d\u0441\u043a\u0430", "name": "\u0421\u043b\u0430\u0432\u044f\u043d\u0441\u043a\u0430", "type": 1, "way_points": [136, 138]}, {"distance": 136.4, "duration": 12.3, "instruction": "Turn left onto \u0421\u0432. \u041e\u0442\u0435\u0446 \u041f\u0430\u0438\u0441\u0438\u0439", "name": "\u0421\u0432. \u041e\u0442\u0435\u0446 \u041f\u0430\u0438\u0441\u0438\u0439", "type": 0, "way_points": [138, 140]}, {"distance": 133.7, "duration": 12.0, "instruction": "Turn right onto \u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "name": "\u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "type": 1, "way_points": [140, 143]}, {"distance": 127.2, "duration": 12.2, "exit_number": 2, "instruction": "Enter the roundabout and take the 2nd exit onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 7, "way_points": [143, 150]}, {"distance": 251.6, "duration": 38.7, "instruction": "Turn left onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 0, "way_points": [150, 156]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u041e\u0440\u0435\u0448\u0430\u043a\u0430, on the right", "name": "-", "type": 10, "way_points": [156, 156]}]}, {"distance": 1121.3, "duration": 144.8, "steps": [{"distance": 272.9, "duration": 39.3, "instruction": "Head north on \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 11, "way_points": [156, 159]}, {"distance": 568.6, "duration": 49.0, "instruction": "Turn sharp right onto \u041a\u0430\u043f\u0440\u043e\u043d\u0438, 5", "name": "\u041a\u0430\u043f\u0440\u043e\u043d\u0438, 5", "type": 3, "way_points": [159, 171]}, {"distance": 174.9, "duration": 31.4, "instruction": "Turn sharp left onto \u0421\u0442\u0430\u0440\u0430 \u0420\u0435\u043a\u0430, 5", "name": "\u0421\u0442\u0430\u0440\u0430 \u0420\u0435\u043a\u0430, 5", "type": 2, "way_points": [171, 178]}, {"distance": 86.1, "duration": 20.7, "instruction": "Turn right onto \u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438", "name": "\u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438", "type": 1, "way_points": [178, 182]}, {"distance": 18.8, "duration": 4.5, "instruction": "Keep right onto \u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438", "name": "\u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438", "type": 13, "way_points": [182, 183]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438, on the left", "name": "-", "type": 10, "way_points": [183, 183]}]}, {"distance": 217.4, "duration": 51.2, "steps": [{"distance": 18.8, "duration": 4.5, "instruction": "Head northeast on \u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438", "name": "\u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438", "type": 11, "way_points": [183, 184]}, {"distance": 86.1, "duration": 20.7, "instruction": "Turn slight left onto \u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438", "name": "\u041a\u043d\u044f\u0437 \u041c\u0438\u0440\u0441\u043a\u0438", "type": 4, "way_points": [184, 188]}, {"distance": 6.8, "duration": 0.6, "instruction": "Turn right onto \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0420\u0430\u0434\u0435\u0446\u043a\u0438", "name": "\u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0420\u0430\u0434\u0435\u0446\u043a\u0438", "type": 1, "way_points": [188, 189]}, {"distance": 105.8, "duration": 25.4, "instruction": "Turn left onto \u0422\u044e\u043b\u0431\u0435\u043d\u0441\u043a\u0430", "name": "\u0422\u044e\u043b\u0431\u0435\u043d\u0441\u043a\u0430", "type": 0, "way_points": [189, 193]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u0422\u044e\u043b\u0431\u0435\u043d\u0441\u043a\u0430, on the right", "name": "-", "type": 10, "way_points": [193, 193]}]}], "summary": {"distance": 8058.4, "duration": 1221.6}, "way_points": [0, 24, 39, 45, 62, 67, 92, 107, 133, 156, 183, 193]}, "type": "Feature"}], "metadata": {"attribution": "openrouteservice.org | OpenStreetMap contributors", "engine": {"build_date": "2025-10-31T12:33:09Z", "graph_date": "2025-11-23T11:22:24Z", "osm_date": "2025-11-17T01:00:01Z", "version": "9.5.0"}, "query": {"coordinates": [[25.3954, 42.6181], [25.393733907311518, 42.62337715947338], [25.39512345678901, 42.62089123456789], [25.3965, 42.622], [25.393, 42.6232], [25.3958, 42.6238], [25.3933, 42.6202], [25.3928, 42.6214], [25.3978, 42.6206], [25.3928, 42.6244], [25.3983, 42.624], [25.4, 42.625]], "format": "geojson", "profile": "driving-car", "profileName": "driving-car"}, "service": "routing", "timestamp": 1764444150733}, "type": "FeatureCollection"});
+
+        
+    
+            geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74.bindTooltip(
+                `<div>
+                     Route 1
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            geo_json_9c87679b0f2bf19b7ce6da08fd5c1e74.addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var marker_df9aff589f7bd5c1e009ad3814f8ed94 = L.marker(
+                [42.6196, 25.3968],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var icon_273e4e1f632878b42b453dbb81f2ac7b = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_05d486430d2b8afaf249f5d96c4a4baf = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_0de19948b9935c6704373d3eb495698d = $(`<div id="html_0de19948b9935c6704373d3eb495698d" style="width: 100.0%; height: 100.0%;">Route 2, Stop 11<br>Bin ID: 50</div>`)[0];
+                popup_05d486430d2b8afaf249f5d96c4a4baf.setContent(html_0de19948b9935c6704373d3eb495698d);
+            
+        
+
+        marker_df9aff589f7bd5c1e009ad3814f8ed94.bindPopup(popup_05d486430d2b8afaf249f5d96c4a4baf)
+        ;
+
+        
+    
+    
+                marker_df9aff589f7bd5c1e009ad3814f8ed94.setIcon(icon_273e4e1f632878b42b453dbb81f2ac7b);
+            
+    
+            var marker_22371fe501efb71894bef94037c35256 = L.marker(
+                [42.61945, 25.3968],
+                {
+}
+            ).addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+    
+            var div_icon_79c3b501c3c1255c4e5fe22c7c7e04ca = L.divIcon({
+  "html": "\n                    \u003cdiv style=\"\n                        font-size: 12px;\n                        font-weight: bold;\n                        color: white;\n                        background-color: red;\n                        border-radius: 50%;\n                        width: 26px;\n                        height: 26px;\n                        display: flex;\n                        align-items: center;\n                        justify-content: center;\n                        border: 2px solid white;\n                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);\n                    \"\u003e\n                        11\n                    \u003c/div\u003e\n                ",
+  "className": "empty",
+});
+        
+    
+                marker_22371fe501efb71894bef94037c35256.setIcon(div_icon_79c3b501c3c1255c4e5fe22c7c7e04ca);
+            
+    
+        function geo_json_644e5417d394983eb53faac9aa144f88_styler(feature) {
+            switch(feature.id) {
+                default:
+                    return {"color": "red", "opacity": 0.7, "weight": 4};
+            }
+        }
+
+        function geo_json_644e5417d394983eb53faac9aa144f88_onEachFeature(feature, layer) {
+
+            layer.on({
+            });
+        };
+        var geo_json_644e5417d394983eb53faac9aa144f88 = L.geoJson(null, {
+                onEachFeature: geo_json_644e5417d394983eb53faac9aa144f88_onEachFeature,
+            
+                style: geo_json_644e5417d394983eb53faac9aa144f88_styler,
+            ...{
+}
+        });
+
+        function geo_json_644e5417d394983eb53faac9aa144f88_add (data) {
+            geo_json_644e5417d394983eb53faac9aa144f88
+                .addData(data);
+        }
+            geo_json_644e5417d394983eb53faac9aa144f88_add({"bbox": [25.394291, 42.618917, 25.399972, 42.625125], "features": [{"bbox": [25.394291, 42.618917, 25.399972, 42.625125], "geometry": {"coordinates": [[25.399972, 42.625125], [25.399695, 42.625091], [25.399285, 42.624969], [25.39901, 42.624846], [25.39885, 42.62472], [25.398778, 42.624749], [25.398331, 42.624912], [25.398191, 42.624913], [25.398077, 42.624866], [25.397504, 42.62443], [25.397456, 42.624381], [25.39726, 42.624204], [25.397176, 42.624111], [25.397961, 42.622658], [25.398189, 42.622081], [25.398451, 42.621422], [25.397191, 42.621134], [25.396701, 42.620955], [25.396047, 42.620686], [25.395263, 42.620334], [25.395309, 42.620278], [25.395555, 42.619999], [25.395649, 42.619859], [25.395907, 42.619481], [25.396229, 42.618917], [25.39695, 42.619017], [25.396229, 42.618917], [25.395907, 42.619481], [25.395649, 42.619859], [25.395555, 42.619999], [25.395309, 42.620278], [25.395263, 42.620334], [25.394941, 42.620702], [25.394419, 42.621294], [25.394392, 42.621349], [25.394441, 42.621382], [25.394455, 42.62143], [25.394423, 42.621479], [25.394392, 42.621495], [25.394461, 42.621587], [25.394456, 42.621676], [25.394291, 42.622435], [25.395551, 42.622851], [25.396116, 42.623181], [25.396586, 42.623527], [25.396836, 42.623757], [25.397176, 42.624111], [25.39726, 42.624204], [25.397456, 42.624381], [25.397504, 42.62443], [25.398077, 42.624866], [25.398191, 42.624913], [25.398331, 42.624912], [25.398778, 42.624749], [25.39885, 42.62472], [25.39901, 42.624846], [25.399285, 42.624969], [25.399695, 42.625091], [25.399972, 42.625125]], "type": "LineString"}, "id": "0", "properties": {"segments": [{"distance": 1130.3, "duration": 133.2, "steps": [{"distance": 105.8, "duration": 25.4, "instruction": "Head west on \u0422\u044e\u043b\u0431\u0435\u043d\u0441\u043a\u0430", "name": "\u0422\u044e\u043b\u0431\u0435\u043d\u0441\u043a\u0430", "type": 11, "way_points": [0, 4]}, {"distance": 181.7, "duration": 32.0, "instruction": "Turn right onto \u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0420\u0430\u0434\u0435\u0446\u043a\u0438", "name": "\u0413\u0435\u043d\u0435\u0440\u0430\u043b \u0420\u0430\u0434\u0435\u0446\u043a\u0438", "type": 1, "way_points": [4, 12]}, {"distance": 316.9, "duration": 28.5, "instruction": "Turn left onto \u041d\u0438\u043a\u043e\u043b\u0430 \u041f\u0435\u0442\u043a\u043e\u0432, 5", "name": "\u041d\u0438\u043a\u043e\u043b\u0430 \u041f\u0435\u0442\u043a\u043e\u0432, 5", "type": 0, "way_points": [12, 15]}, {"distance": 289.2, "duration": 26.0, "instruction": "Turn right onto \u0421\u0432. \u041e\u0442\u0435\u0446 \u041f\u0430\u0438\u0441\u0438\u0439", "name": "\u0421\u0432. \u041e\u0442\u0435\u0446 \u041f\u0430\u0438\u0441\u0438\u0439", "type": 1, "way_points": [15, 19]}, {"distance": 176.7, "duration": 15.9, "instruction": "Turn left onto \u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "name": "\u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "type": 0, "way_points": [19, 24]}, {"distance": 60.0, "duration": 5.4, "instruction": "Turn left onto \u041a\u043d\u044f\u0437 \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u044a\u0440 \u0411\u0430\u0442\u0435\u043d\u0431\u0435\u0440\u0433", "name": "\u041a\u043d\u044f\u0437 \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u044a\u0440 \u0411\u0430\u0442\u0435\u043d\u0431\u0435\u0440\u0433", "type": 0, "way_points": [24, 25]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u041a\u043d\u044f\u0437 \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u044a\u0440 \u0411\u0430\u0442\u0435\u043d\u0431\u0435\u0440\u0433, on the left", "name": "-", "type": 10, "way_points": [25, 25]}]}, {"distance": 1092.4, "duration": 130.6, "steps": [{"distance": 60.0, "duration": 5.4, "instruction": "Head west on \u041a\u043d\u044f\u0437 \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u044a\u0440 \u0411\u0430\u0442\u0435\u043d\u0431\u0435\u0440\u0433", "name": "\u041a\u043d\u044f\u0437 \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u044a\u0440 \u0411\u0430\u0442\u0435\u043d\u0431\u0435\u0440\u0433", "type": 11, "way_points": [25, 26]}, {"distance": 310.4, "duration": 27.9, "instruction": "Turn right onto \u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "name": "\u0421\u0432. \u0421\u0432. \u041a\u0438\u0440\u0438\u043b \u0438 \u041c\u0435\u0442\u043e\u0434\u0438\u0439", "type": 1, "way_points": [26, 34]}, {"distance": 127.2, "duration": 12.2, "exit_number": 2, "instruction": "Enter the roundabout and take the 2nd exit onto \u041e\u0440\u0435\u0448\u0430\u043a\u0430", "name": "\u041e\u0440\u0435\u0448\u0430\u043a\u0430", "type": 7, "way_points": [34, 41]}, {"distance": 307.3, "duration": 27.7, "instruction": "Turn right onto \u041b\u044e\u0431\u043e\u043c\u0438\u0440 \u041a\u0430\u0431\u0430\u043a\u0447\u0438\u0435\u0432", "name": "\u041b\u044e\u0431\u043e\u043c\u0438\u0440 \u041a\u0430\u0431\u0430\u043a\u0447\u0438\u0435\u0432", "type": 1, "way_points": [41, 46]}, {"distance": 181.7, "duration": 32.0, "instruction": "Continue straight onto \u0421\u0442\u0430\u0440\u0430 \u0420\u0435\u043a\u0430, 5", "name": "\u0421\u0442\u0430\u0440\u0430 \u0420\u0435\u043a\u0430, 5", "type": 6, "way_points": [46, 54]}, {"distance": 105.8, "duration": 25.4, "instruction": "Turn left onto \u0422\u044e\u043b\u0431\u0435\u043d\u0441\u043a\u0430", "name": "\u0422\u044e\u043b\u0431\u0435\u043d\u0441\u043a\u0430", "type": 0, "way_points": [54, 58]}, {"distance": 0.0, "duration": 0.0, "instruction": "Arrive at \u0422\u044e\u043b\u0431\u0435\u043d\u0441\u043a\u0430, on the right", "name": "-", "type": 10, "way_points": [58, 58]}]}], "summary": {"distance": 2222.7, "duration": 263.79999999999995}, "way_points": [0, 25, 58]}, "type": "Feature"}], "metadata": {"attribution": "openrouteservice.org | OpenStreetMap contributors", "engine": {"build_date": "2025-10-31T12:33:09Z", "graph_date": "2025-11-23T11:22:24Z", "osm_date": "2025-11-17T01:00:01Z", "version": "9.5.0"}, "query": {"coordinates": [[25.4, 42.625], [25.3968, 42.6196], [25.4, 42.625]], "format": "geojson", "profile": "driving-car", "profileName": "driving-car"}, "service": "routing", "timestamp": 1764444150835}, "type": "FeatureCollection"});
+
+        
+    
+            geo_json_644e5417d394983eb53faac9aa144f88.bindTooltip(
+                `<div>
+                     Route 2
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            geo_json_644e5417d394983eb53faac9aa144f88.addTo(map_0e64851a9a429a0693ec2a7e989cb311);
+        
+</script>
+</html>

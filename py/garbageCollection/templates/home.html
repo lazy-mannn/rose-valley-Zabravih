@@ -1,0 +1,309 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Garbage Collection{% endblock %}
+
+{% block extra_css %}
+<style>
+    .map-view-container {
+        position: relative;
+        height: 750px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .map-controls {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        max-width: 280px;
+    }
+    .btn-map-view {
+        margin-right: 5px;
+        margin-bottom: 10px;
+        width: 48%;
+    }
+    .capacity-control {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 2px solid #e9ecef;
+    }
+    .route-selector {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 2px solid #e9ecef;
+        display: none;
+    }
+    .route-stats {
+        position: absolute;
+        bottom: 15px;
+        right: 15px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        min-width: 250px;
+        display: none;
+    }
+    .spinner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 999;
+    }
+    .route-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        margin: 3px;
+        border-radius: 15px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 12px;
+        border: 2px solid transparent;
+    }
+    .route-badge:hover {
+        transform: scale(1.05);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .route-badge.active {
+        border: 2px solid #333;
+        font-weight: bold;
+    }
+    .stat-card {
+        transition: transform 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h1 class="mb-4"><i class="fas fa-trash-alt"></i> Garbage Collection Dashboard</h1>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary stat-card">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-dumpster"></i> Total Bins</h5>
+                    <h2>{{ total_cans }}</h2>
+                    <small>Monitored locations</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger stat-card">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-exclamation-triangle"></i> Full Bins</h5>
+                    <h2>{{ full_cans }}</h2>
+                    <small>≥80% capacity</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning stat-card">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-truck"></i> Need Collection</h5>
+                    <h2>{{ needs_collection }}</h2>
+                    <small>>60% or <3 days</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info stat-card">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-chart-line"></i> Avg Fill Rate</h5>
+                    <h2>{{ avg_daily_rate }}%</h2>
+                    <small>per day</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map View -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="map-view-container">
+                <!-- Map Controls -->
+                <div class="map-controls">
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-sm btn-primary btn-map-view active" data-view="heatmap">
+                            <i class="fas fa-fire"></i> Heatmap
+                        </button>
+                        <button class="btn btn-sm btn-success btn-map-view" data-view="route">
+                            <i class="fas fa-route"></i> Routes
+                        </button>
+                    </div>
+                    
+                    <div class="capacity-control">
+                        <label for="truckCapacity" class="form-label">
+                            <strong><i class="fas fa-truck"></i> Truck Capacity:</strong>
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" class="form-control" id="truckCapacity" 
+                                   value="{{ truck_capacity }}" min="1" max="50">
+                            <button class="btn btn-primary" id="updateCapacity">
+                                <i class="fas fa-sync"></i> Update
+                            </button>
+                        </div>
+                        <small class="text-muted">Bins per truck load</small>
+                    </div>
+
+                    <!-- Route Selector (shown only in route view) -->
+                    <div class="route-selector" id="routeSelector">
+                        <label class="form-label">
+                            <strong><i class="fas fa-map-marked-alt"></i> Select Route:</strong>
+                        </label>
+                        <div id="routeBadges"></div>
+                        <small class="text-muted">Click to highlight a route</small>
+                    </div>
+                </div>
+
+                <!-- Route Statistics -->
+                <div class="route-stats" id="routeStats">
+                    <h6 class="mb-3"><strong><i class="fas fa-clipboard-list"></i> Route Summary</strong></h6>
+                    <div id="statsContent">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    </div>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div class="spinner" id="mapSpinner" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+
+                <!-- Map Content -->
+                <div id="mapContent" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentView = 'heatmap';
+let truckCapacity = {{ truck_capacity }};
+let routeData = null;
+let selectedRoute = null;
+
+const ROUTE_COLORS = ['blue', 'red', 'green', 'purple', 'orange', 'brown', 'pink', 'cyan'];
+
+// Load map view
+function loadMapView(view, capacity = null, highlightRoute = null) {
+    const mapContent = document.getElementById('mapContent');
+    const mapSpinner = document.getElementById('mapSpinner');
+    const routeStats = document.getElementById('routeStats');
+    const routeSelector = document.getElementById('routeSelector');
+    
+    mapSpinner.style.display = 'block';
+    mapContent.innerHTML = '';
+    
+    let url = view === 'heatmap' ? '/api/heatmap/' : '/api/route/';
+    if (capacity !== null && view === 'route') {
+        url += `?truck_capacity=${capacity}`;
+        if (highlightRoute !== null) {
+            url += `&highlight=${highlightRoute}`;
+        }
+    }
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            mapContent.innerHTML = data.html;
+            mapSpinner.style.display = 'none';
+            
+            if (view === 'route' && data.stats) {
+                routeData = data;
+                
+                // Show route stats
+                document.getElementById('statsContent').innerHTML = `
+                    <div style="font-size: 13px; line-height: 1.8;">
+                        <div class="mb-2">
+                            <strong>Total Routes:</strong> 
+                            <span class="badge bg-primary">${data.stats.total_routes}</span>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Bins to Collect:</strong> 
+                            <span class="badge bg-danger">${data.stats.total_bins}</span>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Truck Capacity:</strong> 
+                            <span class="badge bg-success">${data.stats.truck_capacity}</span>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Total Distance:</strong> 
+                            <span class="badge bg-warning text-dark">${data.stats.total_distance} km</span>
+                        </div>
+                    </div>
+                `;
+                routeStats.style.display = 'block';
+                
+                // Show route selector
+                const routeBadges = document.getElementById('routeBadges');
+                routeBadges.innerHTML = '';
+                for (let i = 0; i < data.stats.total_routes; i++) {
+                    const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
+                    const badge = document.createElement('span');
+                    badge.className = `route-badge ${selectedRoute === i ? 'active' : ''}`;
+                    badge.style.backgroundColor = color;
+                    badge.style.color = 'white';
+                    badge.textContent = `Route ${i + 1}`;
+                    badge.dataset.route = i;
+                    badge.onclick = () => selectRoute(i);
+                    routeBadges.appendChild(badge);
+                }
+                routeSelector.style.display = 'block';
+                
+            } else {
+                routeStats.style.display = 'none';
+                routeSelector.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading map:', error);
+            mapContent.innerHTML = '<div class="alert alert-danger m-3">Failed to load map</div>';
+            mapSpinner.style.display = 'none';
+        });
+}
+
+// Select route to highlight
+function selectRoute(routeIdx) {
+    selectedRoute = routeIdx;
+    loadMapView('route', truckCapacity, routeIdx);
+}
+
+// View switcher
+document.querySelectorAll('.btn-map-view').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.btn-map-view').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        currentView = this.getAttribute('data-view');
+        selectedRoute = null;
+        loadMapView(currentView, currentView === 'route' ? truckCapacity : null);
+    });
+});
+
+// Update capacity
+document.getElementById('updateCapacity').addEventListener('click', function() {
+    truckCapacity = parseInt(document.getElementById('truckCapacity').value);
+    selectedRoute = null;
+    if (currentView === 'route') {
+        loadMapView('route', truckCapacity);
+    }
+});
+
+// Load initial view
+loadMapView('heatmap');
+</script>
+{% endblock %}

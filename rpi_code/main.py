@@ -5,6 +5,7 @@ import sys
 import time
 import numpy as np
 import tensorflow as tf
+import requests
 
 # ---------------- NFC -----------------
 # Safe import for RPi modules so the app doesn't crash on non-RPi environments
@@ -231,15 +232,61 @@ def api_classify():
         "all_predictions": {label: float(prob*100) for label, prob in zip(labels, predictions)}
     })
 
+# ---------------- DJANGO INTEGRATION -----------------
+DJANGO_SERVER = "https://zabravih.org"
+TRASHCAN_ID = 1  # Set this for each physical bin
+
+# AI Category mapping
+AI_CATEGORIES = {
+    "is_empty": "is_empty",
+    "is_half": "is_half", 
+    "is_full": "is_full",
+    "is_scattered": "is_scattered"
+}
+
+def send_to_django(category, confidence):
+    """Send AI classification to Django server"""
+    
+    payload = {
+        "trashcan_id": TRASHCAN_ID,
+        "category": category,  # Send AI category directly
+        "confidence": confidence
+    }
+    
+    try:
+        response = requests.post(
+            f"{DJANGO_SERVER}/api/update/",
+            json=payload,
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Sent to Django:")
+            print(f"   Category: {category}")
+            print(f"   Recorded: {data['recorded_fill_level']}%")
+            print(f"   Predicted: {data['predicted_fill_level']}%")
+            print(f"   Daily Rate: {data['daily_fill_rate']}%/day")
+            print(f"   Days Until Full: {data['days_until_full']}")
+            return True
+        else:
+            print(f"❌ Django error: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Connection error: {e}")
+        return False
+
 # New: classifier thread that runs at CLASSIFY_FPS and updates latest_result
 def classifier_loop(interval_sec):
-    """Periodically classify the latest frame (runs in background)."""
+    """Periodically classify and send to Django"""
     while True:
         with frame_lock:
             frame = None if current_frame is None else current_frame.copy()
         if frame is not None:
             try:
-                classify_frame(frame)
+                category, confidence, _ = classify_frame(frame)
+                # Send to Django with AI category
+                if confidence > 60:  # Send if reasonably confident
+                    send_to_django(category, confidence)
             except Exception as e:
                 print(f"Classifier loop error: {e}")
         time.sleep(interval_sec)
