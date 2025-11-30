@@ -119,7 +119,7 @@ def home(request):
         full_cans = sum(1 for stat in can_stats if stat['predicted_fill'] >= 80)
         avg_fill = sum(min(stat['predicted_fill'], 100) for stat in can_stats) / len(can_stats)
         needs_collection = sum(1 for stat in can_stats 
-                             if stat['predicted_fill'] >= 60 or stat['days_until_full'] <= 3)
+                             if stat['predicted_fill'] >= 60 or stat['days_until_full'] <= 1)
         avg_daily_rate = sum(stat['daily_rate'] for stat in can_stats) / len(can_stats)
         
         # Find fastest and slowest filling bins
@@ -253,7 +253,7 @@ def generate_heatmap_view(request):
 # Generate route optimization map (separate endpoint)
 @require_http_methods(["GET"])
 def generate_route_view(request):
-    truck_capacity = int(request.GET.get('truck_capacity', 10))
+    truck_capacity = int(request.GET.get('truck_capacity', 20))
     highlight_route = request.GET.get('highlight', None)
     if highlight_route is not None:
         highlight_route = int(highlight_route)
@@ -264,14 +264,14 @@ def generate_route_view(request):
     except:
         client = None
     
-    # Get all bins that need collection (>60% OR <3 days until full)
+    # Get all bins that need collection (>60% OR <1 days until full)
     bins_to_collect = []
     for can in TrashCan.objects.all():
         predicted_fill = can.get_predicted_fill_level()
         days_until_full = can.get_days_until_full()
         
-        # Collect if >60% OR overflowing OR will be full soon
-        if predicted_fill >= 60 or predicted_fill >= 100 or days_until_full <= 3:
+        # Collect if >60% OR overflowing OR will be full soon (≤1 day)
+        if predicted_fill >= 60 or predicted_fill >= 100 or days_until_full <= 1:
             bins_to_collect.append(can)
     
     if not bins_to_collect:
