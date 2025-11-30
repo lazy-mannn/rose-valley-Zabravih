@@ -99,43 +99,80 @@ def classify_frame_local(frame):
         # keep last result if inference fails
         print("Classification error:", e, file=sys.stderr)
 
-def send_to_django(trashcan_id, category, confidence):
-    """Send classification result to Django server."""
+API_KEY = "YOUR_GENERATED_API_KEY_HERE"
+
+def send_to_django(nfc_uid, category, confidence):
+    """
+    Send AI classification to Django with NFC UID
+    
+    Args:
+        nfc_uid (str): NFC tag hardware UID
+        category (str): AI classification
+        confidence (float): AI confidence score
+    """
     try:
-        data = {
-            'trashcan_id': trashcan_id,
-            'category': category,
-            'confidence': confidence
+        headers = {
+            "Content-Type": "application/json",
+            "X-API-Key": API_KEY
+        }
+        
+        payload = {
+            "nfc_uid": str(nfc_uid),  # ← Send UID instead of bin ID
+            "category": category,
+            "confidence": round(confidence, 2)
         }
         
         response = requests.post(
             f"{DJANGO_SERVER_URL}/api/update/",
-            json=data,
+            json=payload,
+            headers=headers,
             timeout=10,
-            verify=True  # Verify SSL certificate
+            verify=True
         )
         
         if response.status_code == 200:
             result = response.json()
-            print(f"✅ Sent to Django: Bin {trashcan_id} at {confidence:.1f}% confidence")
-            print(f"   Server response: {result.get('message', 'OK')}")
-            if 'emptied_at' in result:
-                print(f"   Bin emptied at: {result['emptied_at']}")
+            print(f"✅ SUCCESS!")
+            print(f"   Bin ID: {result.get('trashcan_id', 'unknown')}")
+            print(f"   NFC UID: {result.get('nfc_uid', 'unknown')}")
+            print(f"   Message: {result['message']}")
+            print(f"   Device: {result['device']}")
+            print(f"   Collected at: {result['collected_at_fill_level']}%")
+            print(f"   New fill rate: {result['updated_daily_rate']}% per day")
+            print(f"   Days until full: {result['days_until_full']}")
             return True
+            
+        elif response.status_code == 401:
+            print("❌ Authentication failed: Missing API key", file=sys.stderr)
+            return False
+            
+        elif response.status_code == 403:
+            print("❌ Access denied: Invalid or inactive API key", file=sys.stderr)
+            return False
+            
+        elif response.status_code == 404:
+            error_data = response.json()
+            print(f"❌ {error_data.get('error', 'Bin not found')}", file=sys.stderr)
+            print(f"   Hint: {error_data.get('hint', 'Register this NFC tag first')}", file=sys.stderr)
+            return False
+            
         else:
-            print(f"❌ Django server error: {response.status_code}", file=sys.stderr)
+            print(f"❌ Server error: {response.status_code}", file=sys.stderr)
             print(f"   Response: {response.text}", file=sys.stderr)
             return False
             
     except requests.exceptions.Timeout:
-        print("❌ Django server timeout", file=sys.stderr)
+        print("⏱️ Request timed out (>10 seconds)", file=sys.stderr)
         return False
-    except requests.exceptions.SSLError as e:
-        print(f"❌ SSL error connecting to Django: {e}", file=sys.stderr)
+        
+    except requests.exceptions.ConnectionError:
+        print("🌐 Connection error - check internet connection", file=sys.stderr)
         return False
+        
     except Exception as e:
-        print(f"❌ Failed to send to Django: {e}", file=sys.stderr)
+        print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return False
+
 
 def classifier_loop():
     """Enqueue a snapshot for inference every CLASSIFY_INTERVAL seconds (non-blocking)."""
@@ -192,47 +229,47 @@ def inference_worker():
             time.sleep(1)
 
 def nfc_loop():
-    """NFC tag detection - reads text from ANY NFC tag and triggers data send to Django."""
+    """NFC tag detection - reads UID and sends to Django"""
     if reader is None:
         print("⚠️  NFC reader not available", file=sys.stderr)
         return
     
     print("🔍 NFC reader active - waiting for tags...")
-    print("   Place any NFC tag/card with bin ID written as text")
+    print("   Reading hardware UID (no text required)")
     print()
     
     last_scan_time = 0
+    last_uid = None
     
     while True:
         try:
             # Read NFC tag (blocks until tag is detected)
             print("Waiting for NFC tag...", end='\r')
-            id, text = reader.read()
+            uid, text = reader.read()  # We only care about UID now
+            
+            uid_str = str(uid)
             
             # Debounce: ignore if same tag scanned within 3 seconds
             current_time = time.time()
-            if current_time - last_scan_time < 3:
+            if current_time - last_scan_time < 3 and uid_str == last_uid:
                 time.sleep(0.5)
                 continue
             
             last_scan_time = current_time
+            last_uid = uid_str
             
-            # Clean up the text (remove whitespace, newlines)
-            text = text.strip() if text else ""
-            uid_str = str(id)
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             
             print(f"\n{'='*60}")
             print(f"🏷️  NFC Tag Detected!")
-            print(f"   UID: {uid_str}")
-            print(f"   Text: '{text}'")
+            print(f"   Hardware UID: {uid_str}")
             print(f"   Time: {timestamp}")
             print(f"{'='*60}")
             
             # Update NFC tag info
             nfc_last_tag.update({
                 "uid": uid_str,
-                "text": text,
+                "text": text.strip() if text else "",
                 "timestamp": timestamp,
                 "sent": False
             })
@@ -245,52 +282,27 @@ def nfc_loop():
             print(f"   Category: {category}")
             print(f"   Confidence: {confidence:.1f}%")
             
-            # Parse bin ID from text
-            trashcan_id = None
-            
-            # Try to extract numeric ID from text
-            if text:
-                # Remove common prefixes/suffixes
-                clean_text = text.replace("BIN", "").replace("bin", "").replace("#", "").strip()
-                
-                # Try to parse as integer
-                try:
-                    trashcan_id = int(clean_text)
-                    print(f"   ✓ Parsed Bin ID: {trashcan_id}")
-                except ValueError:
-                    # Try to find first number in text
-                    import re
-                    numbers = re.findall(r'\d+', text)
-                    if numbers:
-                        trashcan_id = int(numbers[0])
-                        print(f"   ✓ Extracted Bin ID: {trashcan_id} from '{text}'")
-                    else:
-                        print(f"   ⚠️  Could not parse bin ID from text: '{text}'")
-            
-            if not trashcan_id:
-                print(f"   ⚠️  No bin ID found - using UID hash as fallback")
-                # Fallback: use hash of UID
-                trashcan_id = (abs(hash(uid_str)) % 50) + 1
-                print(f"   ℹ️  Using fallback Bin ID: {trashcan_id}")
-            
             # Only send if confidence is high enough
             if confidence >= CONFIDENCE_THRESHOLD:
                 print(f"\n📤 Sending to Django Server...")
                 print(f"   URL: {DJANGO_SERVER_URL}/api/update/")
-                print(f"   Bin ID: {trashcan_id}")
+                print(f"   NFC UID: {uid_str}")
                 print(f"   Category: {category}")
                 print(f"   Confidence: {confidence:.1f}%")
                 
-                success = send_to_django(trashcan_id, category, confidence)
+                success = send_to_django(uid_str, category, confidence)
                 
                 nfc_last_tag["sent"] = success
                 
                 if success:
-                    print(f"\n✅ Successfully recorded collection for Bin {trashcan_id}")
+                    print(f"\n✅ Successfully recorded collection")
                     print(f"   The bin has been marked as emptied in the system")
                 else:
                     print(f"\n❌ Failed to send data to server")
-                    print(f"   Please check network connection and server status")
+                    print(f"   Possible reasons:")
+                    print(f"   • NFC tag not registered in system")
+                    print(f"   • Network connection issue")
+                    print(f"   • Server error")
                     
             else:
                 print(f"\n⚠️  Confidence too low ({confidence:.1f}% < {CONFIDENCE_THRESHOLD}%)")

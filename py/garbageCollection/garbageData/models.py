@@ -1,136 +1,98 @@
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
+import secrets
 
 class TrashCan(models.Model):
     id = models.IntegerField(primary_key=True)
     latitude = models.FloatField()
     longitude = models.FloatField()
-    last_emptied = models.DateTimeField(default=timezone.now, help_text="Last time bin was emptied")
+    last_emptied = models.DateTimeField(default=timezone.now)
+    nfc_uid = models.CharField(max_length=50, blank=True, null=True, unique=True, 
+                                help_text="NFC tag UID (hardware address)")
 
     def __str__(self):
-        return f"TrashCan {self.id} ({self.latitude}, {self.longitude})"
+        return f"Bin {self.id}" + (f" (NFC: {self.nfc_uid})" if self.nfc_uid else "")
+    
+    @classmethod
+    def get_by_nfc_uid(cls, uid):
+        """Find bin by NFC UID"""
+        try:
+            return cls.objects.get(nfc_uid=uid)
+        except cls.DoesNotExist:
+            return None
     
     def get_average_daily_fill_rate(self):
-        """
-        Calculate average fill rate per day based on collection cycles.
-        
-        LOGIC:
-        1. Get last 30 days of records
-        2. Find "collection events" (where fill level drops from >70% to <20%)
-        3. For each cycle: calculate days from empty to full
-        4. Average fill rate = (final_fill_level) / (days_in_cycle)
-        5. Return average across all cycles
-        """
+        """Calculate fill rate from collection cycles"""
         thirty_days_ago = timezone.now() - timedelta(days=30)
         records = self.fill_records.filter(timestamp__gte=thirty_days_ago).order_by('timestamp')
         
-        if records.count() < 2:
-            return 10.0  # Default if no history
+        if records.count() < 4:
+            return 10.0
         
         fill_rates = []
-        cycle_start_time = None
-        cycle_start_level = 0
-        previous_level = 0
+        cycle_start = None
+        prev_level = 0
         
         for record in records:
-            current_level = min(record.fill_level, 100)  # Normalize overflow
+            current = record.fill_level
             
-            # Detect collection event (drop from high to low)
-            if previous_level > 70 and current_level < 20:
-                # End of cycle - calculate fill rate
-                if cycle_start_time:
-                    days_in_cycle = (record.timestamp - cycle_start_time).total_seconds() / 86400
-                    if days_in_cycle > 0.1:  # At least 2.4 hours
-                        # Fill rate = how much it filled / days it took
-                        fill_rate = previous_level / days_in_cycle
-                        fill_rates.append(fill_rate)
+            if prev_level >= 70 and current <= 20:
+                if cycle_start:
+                    hours = (record.timestamp - cycle_start).total_seconds() / 3600
+                    days = hours / 24
+                    
+                    if 1 <= hours <= 480:
+                        rate = prev_level / days
+                        fill_rates.append(min(rate, 50))
                 
-                # Start new cycle
-                cycle_start_time = record.timestamp
-                cycle_start_level = current_level
-            elif cycle_start_time is None:
-                # First record - start tracking
-                cycle_start_time = record.timestamp
-                cycle_start_level = current_level
+                cycle_start = record.timestamp
             
-            previous_level = current_level
+            elif cycle_start is None and current <= 20:
+                cycle_start = record.timestamp
+            
+            prev_level = current
         
-        # If we have an ongoing cycle, calculate its rate too
-        if cycle_start_time and previous_level > 20:
-            days_in_cycle = (timezone.now() - cycle_start_time).total_seconds() / 86400
-            if days_in_cycle > 0.1:
-                fill_rate = previous_level / days_in_cycle
-                fill_rates.append(fill_rate)
+        if cycle_start and prev_level >= 30:
+            hours = (timezone.now() - cycle_start).total_seconds() / 3600
+            days = hours / 24
+            if 1 <= hours <= 480:
+                rate = prev_level / days
+                fill_rates.append(min(rate, 50))
         
-        # Return average of all rates, or default
-        if fill_rates:
-            avg_rate = sum(fill_rates) / len(fill_rates)
-            return round(avg_rate, 2)
-        else:
-            return 10.0
+        return round(sum(fill_rates) / len(fill_rates), 1) if fill_rates else 10.0
     
     def get_predicted_fill_level(self):
-        """
-        Calculate predicted current fill level.
+        """Predict current fill based on time + rate"""
+        hours_since = (timezone.now() - self.last_emptied).total_seconds() / 3600
+        days_since = hours_since / 24
         
-        LOGIC:
-        1. Days since last emptied
-        2. Multiply by average daily fill rate = predicted fill
-        3. Get latest actual reading (if recent)
-        4. Weight: 70% predicted + 30% latest reading
-        5. Allow >100% for overflow prediction
-        """
-        days_since_emptied = (timezone.now() - self.last_emptied).total_seconds() / 86400
         daily_rate = self.get_average_daily_fill_rate()
+        predicted = days_since * daily_rate
         
-        # Prediction based on time and fill rate
-        time_based_prediction = days_since_emptied * daily_rate
-        
-        # Get latest reading (within last 24 hours)
-        latest_record = self.fill_records.filter(
-            timestamp__gte=timezone.now() - timedelta(hours=24)
+        latest = self.fill_records.filter(
+            timestamp__gte=timezone.now() - timedelta(hours=12)
         ).order_by('-timestamp').first()
         
-        if latest_record:
-            # Weight: 60% time-based, 40% latest reading
-            weighted_prediction = (time_based_prediction * 0.6) + (latest_record.fill_level * 0.4)
-        else:
-            # No recent reading, use time-based prediction only
-            weighted_prediction = time_based_prediction
+        if latest:
+            predicted = (predicted * 0.7) + (latest.fill_level * 0.3)
         
-        # Allow overflow (>100%)
-        return max(0, round(weighted_prediction, 1))
+        return max(0, round(predicted, 1))
     
     def get_days_until_full(self):
-        """
-        Estimate days until bin reaches 100%.
+        """Days until 100% full"""
+        current = self.get_predicted_fill_level()
+        rate = self.get_average_daily_fill_rate()
         
-        LOGIC:
-        1. Current predicted fill level
-        2. If already ≥100%, return 0
-        3. Otherwise: (100 - current) / daily_rate
-        """
-        current_fill = self.get_predicted_fill_level()
-        daily_rate = self.get_average_daily_fill_rate()
-        
-        if current_fill >= 100:
+        if current >= 100:
             return 0.0
+        if rate <= 0:
+            return 99.9
         
-        if daily_rate <= 0:
-            return 999.0
-        
-        days_until_full = (100 - current_fill) / daily_rate
-        return max(0, round(days_until_full, 1))
+        return round((100 - current) / rate, 1)
     
     def mark_as_emptied(self):
-        """
-        Mark bin as emptied (called after collection).
-        
-        LOGIC:
-        1. Set last_emptied to now
-        2. Create a 0% fill record
-        """
+        """Mark bin as collected"""
         self.last_emptied = timezone.now()
         self.save()
         FillRecord.objects.create(trashcan=self, fill_level=0, source='manual')
@@ -139,18 +101,45 @@ class TrashCan(models.Model):
         verbose_name = "Trash Can"
         verbose_name_plural = "Trash Cans"
 
+
 class FillRecord(models.Model):
     trashcan = models.ForeignKey(TrashCan, on_delete=models.CASCADE, related_name='fill_records')
-    fill_level = models.IntegerField(default=0, help_text="Fill level (0-110, >100 means overflowing)")
+    fill_level = models.IntegerField(default=0)
     timestamp = models.DateTimeField(auto_now_add=True)
     source = models.CharField(max_length=20, default='manual', 
-                             choices=[('manual', 'Manual'), ('ai', 'AI Camera'), ('predicted', 'Predicted')])
+                             choices=[('manual', 'Manual'), ('ai', 'AI'), ('predicted', 'Predicted')])
 
     def __str__(self):
-        overflow_indicator = " [OVERFLOW]" if self.fill_level > 100 else ""
-        return f"TrashCan {self.trashcan.id}: {self.fill_level}%{overflow_indicator} at {self.timestamp}"
+        overflow = " ⚠️ OVERFLOW" if self.fill_level > 100 else ""
+        return f"Bin {self.trashcan.id}: {self.fill_level}%{overflow}"
 
     class Meta:
-        verbose_name = "Fill Record"
-        verbose_name_plural = "Fill Records"
         ordering = ['-timestamp']
+
+
+class APIKey(models.Model):
+    """Simple API key for Raspberry Pi authentication"""
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    device_name = models.CharField(max_length=100, help_text="Device identifier (e.g., 'RPi-Truck-1')")
+    description = models.TextField(blank=True, help_text="Optional notes")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True, help_text="Disable key without deleting it")
+    
+    def __str__(self):
+        return f"{self.device_name} ({'Active' if self.is_active else 'Inactive'})"
+    
+    @staticmethod
+    def generate_key():
+        """Generate secure random API key"""
+        return secrets.token_urlsafe(48)
+    
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_key()
+        super().save(*args, **kwargs)
+    
+    class Meta:
+        verbose_name = "API Key"
+        verbose_name_plural = "API Keys"
+        ordering = ['-created_at']

@@ -89,8 +89,9 @@
     <h1 class="mb-4"><i class="fas fa-trash-alt"></i> Garbage Collection Dashboard</h1>
     
     <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
+    <div class="row mb-3">
+        <!-- Row 1: Main Stats -->
+        <div class="col-md-3 col-sm-6 mb-3">
             <div class="card text-white bg-primary stat-card">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-dumpster"></i> Total Bins</h5>
@@ -99,7 +100,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6 mb-3">
             <div class="card text-white bg-danger stat-card">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-exclamation-triangle"></i> Full Bins</h5>
@@ -108,7 +109,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6 mb-3">
             <div class="card text-white bg-warning stat-card">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-truck"></i> Need Collection</h5>
@@ -117,12 +118,70 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6 mb-3">
             <div class="card text-white bg-info stat-card">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-chart-line"></i> Avg Fill Rate</h5>
                     <h2>{{ avg_daily_rate }}%</h2>
                     <small>per day</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Additional Stats (Smaller) -->
+    <div class="row mb-4">
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card border-danger stat-card h-100">
+                <div class="card-body text-center py-2">
+                    <h6 class="text-danger mb-1"><i class="fas fa-explosion"></i> Overflow</h6>
+                    <h4 class="mb-0">{{ overflow_count }}</h4>
+                    <small class="text-muted">≥100%</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card border-warning stat-card h-100">
+                <div class="card-body text-center py-2">
+                    <h6 class="text-warning mb-1"><i class="fas fa-circle-exclamation"></i> Critical</h6>
+                    <h4 class="mb-0">{{ critical_count }}</h4>
+                    <small class="text-muted">90-99%</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card border-secondary stat-card h-100">
+                <div class="card-body text-center py-2">
+                    <h6 class="text-secondary mb-1"><i class="fas fa-triangle-exclamation"></i> Warning</h6>
+                    <h4 class="mb-0">{{ warning_count }}</h4>
+                    <small class="text-muted">70-89%</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card border-success stat-card h-100">
+                <div class="card-body text-center py-2">
+                    <h6 class="text-success mb-1"><i class="fas fa-calendar-week"></i> Weekly</h6>
+                    <h4 class="mb-0">{{ total_collections_last_week }}</h4>
+                    <small class="text-muted">Collections</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card border-primary stat-card h-100">
+                <div class="card-body text-center py-2">
+                    <h6 class="text-primary mb-1"><i class="fas fa-arrow-up"></i> Fastest</h6>
+                    <h4 class="mb-0">{{ fastest_fill_rate }}%</h4>
+                    <small class="text-muted">per day</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card border-info stat-card h-100">
+                <div class="card-body text-center py-2">
+                    <h6 class="text-info mb-1"><i class="fas fa-arrow-down"></i> Slowest</h6>
+                    <h4 class="mb-0">{{ slowest_fill_rate }}%</h4>
+                    <small class="text-muted">per day</small>
                 </div>
             </div>
         </div>

@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import TrashCan, FillRecord
+from .models import TrashCan, FillRecord, APIKey
 import json
 from datetime import datetime, timedelta
 from django.utils import timezone
@@ -10,8 +10,6 @@ import folium
 from folium.plugins import HeatMap, MarkerCluster
 import openrouteservice
 from decouple import config
-import os
-from django.conf import settings
 
 # --- CONFIGURABLE LOCATIONS ---
 DEPOT_LOCATION = {
@@ -37,45 +35,107 @@ AI_CATEGORY_MAP = {
     'is_scattered': 110  # OVERFLOWING - more than 100% full, trash outside bin
 }
 
+# --- AUTHENTICATION DECORATOR ---
+def require_api_key(view_func):
+    """Simple API key check - no rate limiting"""
+    def wrapper(request, *args, **kwargs):
+        # Get API key from header or query parameter
+        api_key = request.headers.get('X-API-Key') or request.GET.get('api_key')
+        
+        if not api_key:
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing API key',
+                'hint': 'Include X-API-Key header or ?api_key= parameter'
+            }, status=401)
+        
+        # Check if key exists and is active
+        try:
+            key_obj = APIKey.objects.get(key=api_key, is_active=True)
+            
+            # Update last used timestamp
+            key_obj.last_used = timezone.now()
+            key_obj.save(update_fields=['last_used'])
+            
+            # Store device name in request for logging
+            request.api_device = key_obj.device_name
+            
+        except APIKey.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid or inactive API key'
+            }, status=403)
+        
+        return view_func(request, *args, **kwargs)
+    
+    return wrapper
+
+
+# --- PUBLIC VIEWS (No Auth) ---
+
 # Home view with maps
 def home(request):
-    # Get truck capacity from request or use default
     truck_capacity = int(request.GET.get('truck_capacity', 10))
     
-    # Get statistics
     total_cans = TrashCan.objects.count()
     
-    # Get latest record for each trash can with predictions
+    # Get detailed statistics
     can_stats = []
+    overflow_count = 0
+    critical_count = 0  # >90%
+    warning_count = 0   # 70-90%
+    total_collections_last_week = 0
+    
     for can in TrashCan.objects.all():
         predicted_fill = can.get_predicted_fill_level()
         days_until_full = can.get_days_until_full()
         daily_rate = can.get_average_daily_fill_rate()
         
+        # Count by severity
+        if predicted_fill >= 100:
+            overflow_count += 1
+        elif predicted_fill >= 90:
+            critical_count += 1
+        elif predicted_fill >= 70:
+            warning_count += 1
+        
+        # Count recent collections
+        week_ago = timezone.now() - timedelta(days=7)
+        weekly_collections = FillRecord.objects.filter(
+            trashcan=can,
+            source='ai',
+            timestamp__gte=week_ago
+        ).count()
+        total_collections_last_week += weekly_collections
+        
         can_stats.append({
             'predicted_fill': predicted_fill,
             'days_until_full': days_until_full,
-            'daily_rate': daily_rate
+            'daily_rate': daily_rate,
+            'weekly_collections': weekly_collections
         })
     
     if can_stats:
-        # Count bins >=80% OR overflowing as "full"
         full_cans = sum(1 for stat in can_stats if stat['predicted_fill'] >= 80)
-        
-        # Average fill across all bins
         avg_fill = sum(min(stat['predicted_fill'], 100) for stat in can_stats) / len(can_stats)
-        
-        # Count bins needing collection (>60% OR <3 days until full)
         needs_collection = sum(1 for stat in can_stats 
                              if stat['predicted_fill'] >= 60 or stat['days_until_full'] <= 3)
-        
-        # Average daily fill rate across all bins
         avg_daily_rate = sum(stat['daily_rate'] for stat in can_stats) / len(can_stats)
+        
+        # Find fastest and slowest filling bins
+        fastest_bin = max(can_stats, key=lambda x: x['daily_rate'])
+        slowest_bin = min(can_stats, key=lambda x: x['daily_rate'])
     else:
         full_cans = 0
         avg_fill = 0
         needs_collection = 0
         avg_daily_rate = 0
+        overflow_count = 0
+        critical_count = 0
+        warning_count = 0
+        total_collections_last_week = 0
+        fastest_bin = {'daily_rate': 0}
+        slowest_bin = {'daily_rate': 0}
     
     context = {
         'total_cans': total_cans,
@@ -84,6 +144,12 @@ def home(request):
         'needs_collection': needs_collection,
         'avg_daily_rate': round(avg_daily_rate, 1),
         'truck_capacity': truck_capacity,
+        'overflow_count': overflow_count,
+        'critical_count': critical_count,
+        'warning_count': warning_count,
+        'total_collections_last_week': total_collections_last_week,
+        'fastest_fill_rate': round(fastest_bin['daily_rate'], 1),
+        'slowest_fill_rate': round(slowest_bin['daily_rate'], 1),
     }
     
     return render(request, 'home.html', context)
@@ -463,58 +529,80 @@ def generate_route_view(request):
     })
 
 
+# --- SECURED API ENDPOINTS ---
+
 # API endpoint for Raspberry Pi to update fill level
 @csrf_exempt
-@csrf_exempt
 @require_http_methods(["POST"])
+@require_api_key
 def api_update_fill_level(request):
     """
-    Raspberry Pi sends data DURING collection.
-    
-    FLOW:
-    1. Raspberry Pi captures image of bin
-    2. AI classifies fill level (this is BEFORE emptying)
-    3. Sends to Django
-    4. Django records this as the "before emptying" level
-    5. Django immediately marks bin as emptied (creates 0% record)
-    6. Updates last_emptied timestamp
-    
-    This means: Every AI reading = collection event
+    SECURED: Update bin fill level from Raspberry Pi
+    Accepts EITHER trashcan_id OR nfc_uid to identify bin
     """
     try:
         data = json.loads(request.body)
-        trashcan_id = data.get('trashcan_id')
         
-        # Accept either fill_level or AI category
+        # Accept either ID or NFC UID
+        trashcan_id = data.get('trashcan_id')
+        nfc_uid = data.get('nfc_uid')
+        
         fill_level = data.get('fill_level')
         category = data.get('category')
+        confidence = data.get('confidence', 0)
         
-        if not trashcan_id:
-            return JsonResponse({'success': False, 'error': 'Missing trashcan_id'}, status=400)
+        # Must provide either ID or UID
+        if not trashcan_id and not nfc_uid:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Missing trashcan_id or nfc_uid'
+            }, status=400)
+        
+        # Find bin by UID first, then by ID
+        if nfc_uid:
+            trashcan = TrashCan.get_by_nfc_uid(str(nfc_uid))
+            if not trashcan:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'No bin registered with NFC UID: {nfc_uid}',
+                    'hint': 'Register this NFC tag in admin panel first'
+                }, status=404)
+        else:
+            try:
+                trashcan = TrashCan.objects.get(id=trashcan_id)
+            except TrashCan.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'error': f'Bin {trashcan_id} not found'
+                }, status=404)
         
         # Convert AI category to fill level
         if category and not fill_level:
             fill_level = AI_CATEGORY_MAP.get(category.lower(), 50)
         
         if fill_level is None:
-            return JsonResponse({'success': False, 'error': 'Missing fill_level or category'}, status=400)
+            return JsonResponse({
+                'success': False, 
+                'error': 'Missing fill_level or category'
+            }, status=400)
         
         if fill_level < 0:
-            return JsonResponse({'success': False, 'error': 'fill_level must be >= 0'}, status=400)
+            return JsonResponse({
+                'success': False, 
+                'error': 'fill_level must be >= 0'
+            }, status=400)
         
-        trashcan = TrashCan.objects.get(id=trashcan_id)
-        
-        # Record the fill level BEFORE collection
+        # Record fill level before collection
         before_record = FillRecord.objects.create(
             trashcan=trashcan,
             fill_level=fill_level,
             source='ai'
         )
         
-        # Immediately mark as emptied (bin is being collected RIGHT NOW)
+        # Mark as emptied
         trashcan.mark_as_emptied()
         
-        # Get updated prediction data
+        # Get updated predictions
         predicted_fill = trashcan.get_predicted_fill_level()
         daily_rate = trashcan.get_average_daily_fill_rate()
         days_until_full = trashcan.get_days_until_full()
@@ -522,44 +610,67 @@ def api_update_fill_level(request):
         return JsonResponse({
             'success': True,
             'trashcan_id': trashcan.id,
+            'nfc_uid': trashcan.nfc_uid,
             'collected_at_fill_level': before_record.fill_level,
+            'confidence': confidence,
             'new_predicted_fill': predicted_fill,
             'updated_daily_rate': daily_rate,
             'days_until_full': days_until_full,
             'emptied_at': trashcan.last_emptied.isoformat(),
-            'message': f'Bin collected at {fill_level}% and emptied'
+            'device': request.api_device,
+            'message': f'Bin {trashcan.id} collected at {fill_level}% (confidence: {confidence}%)'
         })
         
-    except TrashCan.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Trash can not found'}, status=404)
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-# API endpoint to mark bin as emptied (called by collection crew)
+
 @csrf_exempt
 @require_http_methods(["POST"])
+@require_api_key
 def api_mark_emptied(request):
+    """SECURED: Mark bin as emptied (accepts ID or UID)"""
     try:
         data = json.loads(request.body)
         trashcan_id = data.get('trashcan_id')
+        nfc_uid = data.get('nfc_uid')
         
-        if not trashcan_id:
-            return JsonResponse({'success': False, 'error': 'Missing trashcan_id'}, status=400)
+        if not trashcan_id and not nfc_uid:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Missing trashcan_id or nfc_uid'
+            }, status=400)
         
-        trashcan = TrashCan.objects.get(id=trashcan_id)
+        # Find bin
+        if nfc_uid:
+            trashcan = TrashCan.get_by_nfc_uid(str(nfc_uid))
+            if not trashcan:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'No bin registered with NFC UID: {nfc_uid}'
+                }, status=404)
+        else:
+            try:
+                trashcan = TrashCan.objects.get(id=trashcan_id)
+            except TrashCan.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'error': f'Bin {trashcan_id} not found'
+                }, status=404)
+        
         trashcan.mark_as_emptied()
         
         return JsonResponse({
             'success': True,
             'trashcan_id': trashcan.id,
+            'nfc_uid': trashcan.nfc_uid,
             'emptied_at': trashcan.last_emptied.isoformat(),
-            'message': 'Bin marked as emptied'
+            'device': request.api_device,
+            'message': f'Bin {trashcan.id} marked as emptied'
         })
         
-    except TrashCan.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Trash can not found'}, status=404)
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
@@ -568,42 +679,54 @@ def api_mark_emptied(request):
 
 # API endpoint to get trash can status
 @require_http_methods(["GET"])
+@require_api_key
 def api_get_trashcan(request, trashcan_id):
+    """SECURED: Get trash can status"""
     try:
         trashcan = TrashCan.objects.get(id=trashcan_id)
         latest_record = FillRecord.objects.filter(trashcan=trashcan).order_by('-timestamp').first()
-        fill_frequency = trashcan.get_fill_frequency()
+        
+        predicted_fill = trashcan.get_predicted_fill_level()
+        daily_rate = trashcan.get_average_daily_fill_rate()
+        days_until_full = trashcan.get_days_until_full()
         
         return JsonResponse({
             'success': True,
             'trashcan_id': trashcan.id,
             'latitude': trashcan.latitude,
             'longitude': trashcan.longitude,
-            'fill_level': latest_record.fill_level if latest_record else 0,
-            'fill_frequency': fill_frequency,
-            'timestamp': latest_record.timestamp.isoformat() if latest_record else None
+            'current_fill_level': latest_record.fill_level if latest_record else 0,
+            'predicted_fill_level': predicted_fill,
+            'daily_fill_rate': daily_rate,
+            'days_until_full': days_until_full,
+            'last_emptied': trashcan.last_emptied.isoformat(),
+            'last_update': latest_record.timestamp.isoformat() if latest_record else None
         })
     except TrashCan.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trash can not found'}, status=404)
 
 
-# API endpoint to get all trash cans
 @require_http_methods(["GET"])
+@require_api_key
 def api_list_trashcans(request):
+    """SECURED: Get all trash cans"""
     trash_cans = TrashCan.objects.all()
     
     data = []
     for can in trash_cans:
         latest = FillRecord.objects.filter(trashcan=can).order_by('-timestamp').first()
-        fill_frequency = can.get_fill_frequency()
+        predicted_fill = can.get_predicted_fill_level()
+        daily_rate = can.get_average_daily_fill_rate()
         
         data.append({
             'id': can.id,
             'latitude': can.latitude,
             'longitude': can.longitude,
-            'fill_level': latest.fill_level if latest else 0,
-            'fill_frequency': fill_frequency,
-            'timestamp': latest.timestamp.isoformat() if latest else None
+            'current_fill': latest.fill_level if latest else 0,
+            'predicted_fill': predicted_fill,
+            'daily_rate': daily_rate,
+            'last_emptied': can.last_emptied.isoformat(),
+            'last_update': latest.timestamp.isoformat() if latest else None
         })
     
-    return JsonResponse({'success': True, 'trash_cans': data})
+    return JsonResponse({'success': True, 'total_bins': len(data), 'trash_cans': data})
