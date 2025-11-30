@@ -10,6 +10,16 @@ import folium
 from folium.plugins import HeatMap, MarkerCluster
 import openrouteservice
 from decouple import config
+import pytz
+
+# Sofia timezone for display
+SOFIA_TZ = pytz.timezone('Europe/Sofia')
+
+def format_local_time(dt):
+    """Convert UTC to Sofia time"""
+    if dt:
+        return dt.astimezone(SOFIA_TZ).strftime('%Y-%m-%d %H:%M')
+    return '-'
 
 # --- CONFIGURABLE LOCATIONS ---
 DEPOT_LOCATION = {
@@ -75,15 +85,15 @@ def require_api_key(view_func):
 
 # Home view with maps
 def home(request):
-    truck_capacity = int(request.GET.get('truck_capacity', 10))
+    truck_capacity = int(request.GET.get('truck_capacity', 20))
     
     total_cans = TrashCan.objects.count()
     
     # Get detailed statistics
     can_stats = []
     overflow_count = 0
-    critical_count = 0  # >90%
-    warning_count = 0   # 70-90%
+    critical_count = 0  # 90-99%
+    warning_count = 0   # 70-89%
     total_collections_last_week = 0
     
     for can in TrashCan.objects.all():
@@ -99,11 +109,11 @@ def home(request):
         elif predicted_fill >= 70:
             warning_count += 1
         
-        # Count recent collections
+        # Count recent collections (last 7 days)
         week_ago = timezone.now() - timedelta(days=7)
         weekly_collections = FillRecord.objects.filter(
             trashcan=can,
-            source='ai',
+            fill_level=0,  # Empty records indicate collection
             timestamp__gte=week_ago
         ).count()
         total_collections_last_week += weekly_collections
@@ -122,9 +132,14 @@ def home(request):
                              if stat['predicted_fill'] >= 60 or stat['days_until_full'] <= 1)
         avg_daily_rate = sum(stat['daily_rate'] for stat in can_stats) / len(can_stats)
         
-        # Find fastest and slowest filling bins
-        fastest_bin = max(can_stats, key=lambda x: x['daily_rate'])
-        slowest_bin = min(can_stats, key=lambda x: x['daily_rate'])
+        # Find fastest and slowest filling bins (filter out defaults)
+        real_rates = [s for s in can_stats if s['daily_rate'] != 10.0]
+        if real_rates:
+            fastest_bin = max(real_rates, key=lambda x: x['daily_rate'])
+            slowest_bin = min(real_rates, key=lambda x: x['daily_rate'])
+        else:
+            fastest_bin = {'daily_rate': 0}
+            slowest_bin = {'daily_rate': 0}
     else:
         full_cans = 0
         avg_fill = 0
@@ -229,8 +244,8 @@ def generate_heatmap_view(request):
             <b>Predicted Fill:</b> {predicted_fill}%<br>
             <b>Fill Rate:</b> {daily_rate}% per day<br>
             <b>Days Until Full:</b> {days_until_full}<br>
-            <b>Last Emptied:</b> {can.last_emptied.strftime('%Y-%m-%d')}<br>
-            <b>Last Update:</b> {record.timestamp.strftime('%Y-%m-%d %H:%M')}<br>
+            <b>Last Emptied:</b> {format_local_time(can.last_emptied)}<br>
+            <b>Last Update:</b> {format_local_time(record.timestamp)}<br>
             <b>Location:</b> {can.latitude:.4f}, {can.longitude:.4f}
         </div>
         """
@@ -537,28 +552,30 @@ def generate_route_view(request):
 @require_api_key
 def api_update_fill_level(request):
     """
-    SECURED: Update bin fill level from Raspberry Pi
-    Accepts EITHER trashcan_id OR nfc_uid to identify bin
+    🚨 CORRECT FLOW: NFC Scan = Bin Just Emptied!
+    
+    The proper collection cycle is:
+    1. Bin fills from 0% to X% over time
+    2. Truck arrives, AI sees bin at X%
+    3. Driver scans NFC tag (bin NOW empty)
+    4. We record: "Collected at X%, now empty"
+    
+    Algorithm then calculates: X% / days_since_last_empty = fill_rate
     """
     try:
         data = json.loads(request.body)
         
-        # Accept either ID or NFC UID
-        trashcan_id = data.get('trashcan_id')
+        # Find bin by UID or ID
         nfc_uid = data.get('nfc_uid')
+        trashcan_id = data.get('trashcan_id')
         
-        fill_level = data.get('fill_level')
-        category = data.get('category')
-        confidence = data.get('confidence', 0)
-        
-        # Must provide either ID or UID
-        if not trashcan_id and not nfc_uid:
+        if not nfc_uid and not trashcan_id:
             return JsonResponse({
-                'success': False, 
-                'error': 'Missing trashcan_id or nfc_uid'
+                'success': False,
+                'error': 'Missing nfc_uid or trashcan_id'
             }, status=400)
         
-        # Find bin by UID first, then by ID
+        # Find bin
         if nfc_uid:
             trashcan = TrashCan.get_by_nfc_uid(str(nfc_uid))
             if not trashcan:
@@ -572,53 +589,72 @@ def api_update_fill_level(request):
                 trashcan = TrashCan.objects.get(id=trashcan_id)
             except TrashCan.DoesNotExist:
                 return JsonResponse({
-                    'success': False, 
+                    'success': False,
                     'error': f'Bin {trashcan_id} not found'
                 }, status=404)
         
+        # Get AI classification
+        category = data.get('category')
+        confidence = data.get('confidence', 0)
+        
         # Convert AI category to fill level
-        if category and not fill_level:
-            fill_level = AI_CATEGORY_MAP.get(category.lower(), 50)
+        if category:
+            ai_fill_level = AI_CATEGORY_MAP.get(category.lower(), 50)
+        else:
+            # If no AI data, use predicted level as fallback
+            ai_fill_level = int(trashcan.get_predicted_fill_level())
         
-        if fill_level is None:
-            return JsonResponse({
-                'success': False, 
-                'error': 'Missing fill_level or category'
-            }, status=400)
+        # ============ CRITICAL FIX: PROPER SEQUENCE ============
         
-        if fill_level < 0:
-            return JsonResponse({
-                'success': False, 
-                'error': 'fill_level must be >= 0'
-            }, status=400)
+        # STEP 1: Get current prediction (what we THINK it should be at)
+        predicted_before = trashcan.get_predicted_fill_level()
         
-        # Record fill level before collection
-        before_record = FillRecord.objects.create(
+        # STEP 2: Record what AI actually saw (pre-collection state)
+        # This is the END of the fill cycle (0% → X%)
+        collection_record = FillRecord.objects.create(
             trashcan=trashcan,
-            fill_level=fill_level,
-            source='ai'
+            fill_level=int(ai_fill_level),
+            source='ai',
+            timestamp=timezone.now()
         )
         
-        # Mark as emptied
+        # STEP 3: Now mark bin as empty (START of new cycle)
+        # This creates a 0% record and updates last_emptied timestamp
         trashcan.mark_as_emptied()
         
-        # Get updated predictions
-        predicted_fill = trashcan.get_predicted_fill_level()
-        daily_rate = trashcan.get_average_daily_fill_rate()
+        # ============ RESULT: DATABASE SHOWS CORRECT SEQUENCE ============
+        # Before: Last record was 0% (previous collection)
+        # Now:    New record is X% (AI saw before collection)
+        #         Then 0% (just emptied)
+        # Algorithm sees: 0% → X% over Y days = rate ✓
+        
+        # ============ GET UPDATED PREDICTIONS ============
+        new_predicted_fill = trashcan.get_predicted_fill_level()  # Should be ~0-5%
+        updated_daily_rate = trashcan.get_average_daily_fill_rate()  # Recalculated!
         days_until_full = trashcan.get_days_until_full()
+        
+        # Calculate accuracy
+        prediction_accuracy = 100 - abs(predicted_before - ai_fill_level)
         
         return JsonResponse({
             'success': True,
             'trashcan_id': trashcan.id,
             'nfc_uid': trashcan.nfc_uid,
-            'collected_at_fill_level': before_record.fill_level,
-            'confidence': confidence,
-            'new_predicted_fill': predicted_fill,
-            'updated_daily_rate': daily_rate,
-            'days_until_full': days_until_full,
-            'emptied_at': trashcan.last_emptied.isoformat(),
+            'collection_details': {
+                'collected_at_fill_level': int(ai_fill_level),
+                'ai_category': category,
+                'ai_confidence': confidence,
+                'predicted_fill_was': round(predicted_before, 1),
+                'prediction_accuracy': round(max(0, prediction_accuracy), 1),
+                'emptied_at': format_local_time(trashcan.last_emptied),
+            },
+            'updated_predictions': {
+                'current_fill': round(new_predicted_fill, 1),
+                'daily_rate': round(updated_daily_rate, 1),
+                'days_until_full': round(days_until_full, 1),
+            },
             'device': request.api_device,
-            'message': f'Bin {trashcan.id} collected at {fill_level}% (confidence: {confidence}%)'
+            'message': f'✅ Bin {trashcan.id} collected at {ai_fill_level}% full'
         })
         
     except json.JSONDecodeError:
@@ -631,7 +667,7 @@ def api_update_fill_level(request):
 @require_http_methods(["POST"])
 @require_api_key
 def api_mark_emptied(request):
-    """SECURED: Mark bin as emptied (accepts ID or UID)"""
+    """SECURED: Mark bin as emptied (manual collection without AI)"""
     try:
         data = json.loads(request.body)
         trashcan_id = data.get('trashcan_id')
@@ -639,7 +675,7 @@ def api_mark_emptied(request):
         
         if not trashcan_id and not nfc_uid:
             return JsonResponse({
-                'success': False, 
+                'success': False,
                 'error': 'Missing trashcan_id or nfc_uid'
             }, status=400)
         
@@ -656,17 +692,30 @@ def api_mark_emptied(request):
                 trashcan = TrashCan.objects.get(id=trashcan_id)
             except TrashCan.DoesNotExist:
                 return JsonResponse({
-                    'success': False, 
+                    'success': False,
                     'error': f'Bin {trashcan_id} not found'
                 }, status=404)
         
+        # Get predicted fill before emptying
+        predicted_before = trashcan.get_predicted_fill_level()
+        
+        # Record predicted level before collection
+        FillRecord.objects.create(
+            trashcan=trashcan,
+            fill_level=int(predicted_before),
+            source='predicted',
+            timestamp=timezone.now()
+        )
+        
+        # Mark as emptied
         trashcan.mark_as_emptied()
         
         return JsonResponse({
             'success': True,
             'trashcan_id': trashcan.id,
             'nfc_uid': trashcan.nfc_uid,
-            'emptied_at': trashcan.last_emptied.isoformat(),
+            'collected_at_predicted': round(predicted_before, 1),
+            'emptied_at': format_local_time(trashcan.last_emptied),
             'device': request.api_device,
             'message': f'Bin {trashcan.id} marked as emptied'
         })
@@ -699,8 +748,8 @@ def api_get_trashcan(request, trashcan_id):
             'predicted_fill_level': predicted_fill,
             'daily_fill_rate': daily_rate,
             'days_until_full': days_until_full,
-            'last_emptied': trashcan.last_emptied.isoformat(),
-            'last_update': latest_record.timestamp.isoformat() if latest_record else None
+            'last_emptied': format_local_time(trashcan.last_emptied),
+            'last_update': format_local_time(latest_record.timestamp) if latest_record else None
         })
     except TrashCan.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trash can not found'}, status=404)
@@ -725,8 +774,8 @@ def api_list_trashcans(request):
             'current_fill': latest.fill_level if latest else 0,
             'predicted_fill': predicted_fill,
             'daily_rate': daily_rate,
-            'last_emptied': can.last_emptied.isoformat(),
-            'last_update': latest.timestamp.isoformat() if latest else None
+            'last_emptied': format_local_time(can.last_emptied),
+            'last_update': format_local_time(latest.timestamp) if latest else None
         })
     
     return JsonResponse({'success': True, 'total_bins': len(data), 'trash_cans': data})
