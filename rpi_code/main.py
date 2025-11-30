@@ -133,16 +133,17 @@ def classify_frame_local(frame):
         # keep last result if inference fails
         print("Classification error:", e, file=sys.stderr)
 
-def send_to_django(trashcan_id, category, confidence):
+def send_to_django(nfc_uid, category, confidence):
     """Send classification result to Django with API key authentication"""
     try:
         headers = {
             "Content-Type": "application/json",
-            "X-API-Key": API_KEY  # ← Authentication!
+            "X-API-Key": API_KEY
         }
         
+        # Send NFC UID directly, not a hash!
         data = {
-            'trashcan_id': trashcan_id,
+            'nfc_uid': str(nfc_uid),  # ← Send actual UID
             'category': category,
             'confidence': confidence
         }
@@ -157,15 +158,22 @@ def send_to_django(trashcan_id, category, confidence):
         
         if response.status_code == 200:
             result = response.json()
-            print(f"✅ Sent to Django: Bin {trashcan_id} at {confidence:.1f}% confidence")
+            print(f"✅ Sent to Django successfully!")
+            print(f"   Bin ID: {result.get('trashcan_id', 'unknown')}")
+            print(f"   NFC UID: {result.get('nfc_uid', 'unknown')}")
             print(f"   Device: {result.get('device', 'unknown')}")
-            print(f"   Server response: {result.get('message', 'OK')}")
+            print(f"   Message: {result.get('message', 'OK')}")
             return True
         elif response.status_code == 401:
             print("❌ Authentication failed: Missing API key", file=sys.stderr)
             return False
         elif response.status_code == 403:
             print("❌ Access denied: Invalid or inactive API key", file=sys.stderr)
+            return False
+        elif response.status_code == 404:
+            error_data = response.json()
+            print(f"❌ {error_data.get('error', 'Bin not found')}", file=sys.stderr)
+            print(f"   Hint: {error_data.get('hint', 'Register this NFC tag first')}", file=sys.stderr)
             return False
         else:
             print(f"❌ Server error: {response.status_code}", file=sys.stderr)
@@ -237,11 +245,11 @@ def _handle_simulated_tag(uid, text):
     category = latest_result.get("category", "unknown")
     confidence = latest_result.get("confidence", 0.0)
 
-    # Only attempt send if confidence high enough; keep behavior consistent with original code
+    # Only attempt send if confidence high enough
     if confidence >= CONFIDENCE_THRESHOLD:
         try:
-            # send_to_django exists in this module; call it
-            success = send_to_django(int(hash(str(uid)) % 1000), category, confidence)
+            # Send actual UID, not hash
+            success = send_to_django(str(uid), category, confidence)  # ← Fixed!
         except Exception:
             success = False
         nfc_last_tag["sent"] = bool(success)
