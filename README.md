@@ -71,7 +71,7 @@
 
 
 
-## 🌍 **Live Demo**: [https://zabravih.org](https://zabravih.org)
+## 🌍 **Live Demo**: [https://kazan.zabravih.org](https://kazan.zabravih.org)
 
 
 ## Архитектура
