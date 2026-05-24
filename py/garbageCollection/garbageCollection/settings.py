@@ -27,10 +27,10 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['zabravih.org']
+ALLOWED_HOSTS = ['kazan.zabravih.org', 'localhost', '127.0.0.1']
 
 SECURE_SSL_REDIRECT = True
-CSRF_TRUSTED_ORIGINS = ['https://zabravih.org']
+CSRF_TRUSTED_ORIGINS = ['https://kazan.zabravih.org']
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
@@ -49,11 +49,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'corsheaders',
     'garbageData',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -139,3 +142,24 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ── CORS ─────────────────────────────────────────────────────────────────────
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'https://kazan.zabravih.org',
+]
+
+# ── Django REST Framework ─────────────────────────────────────────────────────
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+    'DEFAULT_AUTHENTICATION_CLASSES': [],
+}
+
+# ── Redis cache ───────────────────────────────────────────────────────────────
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {'CLIENT_CLASS': 'django_redis.client.DefaultClient'},
+    }
+}

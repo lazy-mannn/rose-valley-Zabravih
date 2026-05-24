@@ -12,6 +12,15 @@ import openrouteservice
 from decouple import config
 import pytz
 
+# ── DRF imports (Phase 2) ─────────────────────────────────────────────────────
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.core.cache import cache
+from django.db.models import Count, Q, Subquery, OuterRef
+import hashlib
+import math
+from collections import defaultdict, Counter
+
 # Sofia timezone for display
 SOFIA_TZ = pytz.timezone('Europe/Sofia')
 
@@ -84,101 +93,103 @@ def require_api_key(view_func):
 # --- PUBLIC VIEWS (No Auth) ---
 
 # Home view with maps
+def pitch(request):
+    return render(request, 'pitch.html')
+
+
 def home(request):
     truck_capacity = int(request.GET.get('truck_capacity', 20))
-    
+    week_ago = timezone.now() - timedelta(days=7)
+
+    # ── Counts from DB — single queries, works at 43k scale ──────────────
     total_cans = TrashCan.objects.count()
-    
-    # Get detailed statistics
-    can_stats = []
-    overflow_count = 0
-    critical_count = 0  # 90-99%
-    warning_count = 0   # 70-89%
-    total_collections_last_week = 0
-    
-    for can in TrashCan.objects.all():
-        predicted_fill = can.get_predicted_fill_level()
-        days_until_full = can.get_days_until_full()
-        daily_rate = can.get_average_daily_fill_rate()
-        
-        # Count by severity
-        if predicted_fill >= 100:
-            overflow_count += 1
-        elif predicted_fill >= 90:
-            critical_count += 1
-        elif predicted_fill >= 70:
-            warning_count += 1
-        
-        # Count recent collections (last 7 days)
-        week_ago = timezone.now() - timedelta(days=7)
-        weekly_collections = FillRecord.objects.filter(
-            trashcan=can,
-            fill_level=0,  # Empty records indicate collection
-            timestamp__gte=week_ago
-        ).count()
-        total_collections_last_week += weekly_collections
-        
-        can_stats.append({
-            'predicted_fill': predicted_fill,
-            'days_until_full': days_until_full,
-            'daily_rate': daily_rate,
-            'weekly_collections': weekly_collections
-        })
-    
-    if can_stats:
-        full_cans = sum(1 for stat in can_stats if stat['predicted_fill'] >= 80)
-        avg_fill = sum(min(stat['predicted_fill'], 100) for stat in can_stats) / len(can_stats)
-        needs_collection = sum(1 for stat in can_stats 
-                             if stat['predicted_fill'] >= 60 or stat['days_until_full'] <= 1)
-        avg_daily_rate = sum(stat['daily_rate'] for stat in can_stats) / len(can_stats)
-        
-        # Find fastest and slowest filling bins (filter out defaults)
-        real_rates = [s for s in can_stats if s['daily_rate'] != 10.0]
-        if real_rates:
-            fastest_bin = max(real_rates, key=lambda x: x['daily_rate'])
-            slowest_bin = min(real_rates, key=lambda x: x['daily_rate'])
-        else:
-            fastest_bin = {'daily_rate': 0}
-            slowest_bin = {'daily_rate': 0}
+
+    # All fill data stats come from FillRecord aggregates, not per-bin loops.
+    # Only bins with fill records have meaningful monitored data.
+    from django.db.models import Max, FloatField
+    from django.db.models.functions import Cast
+
+    # Latest fill level per bin (subquery approach via annotation)
+    # We get the most recent non-zero fill record for each bin.
+    latest_fills = (
+        FillRecord.objects
+        .filter(fill_level__gt=0)
+        .values('trashcan_id')
+        .annotate(latest_fill=Max('fill_level'), latest_ts=Max('timestamp'))
+    )
+
+    # Build quick lookup: trashcan_id → latest_fill
+    fill_map = {row['trashcan_id']: row['latest_fill'] for row in latest_fills}
+
+    monitored_fills = list(fill_map.values())
+    monitored_count = len(monitored_fills)
+
+    if monitored_fills:
+        overflow_count       = sum(1 for f in monitored_fills if f >= 100)
+        critical_count       = sum(1 for f in monitored_fills if 90 <= f < 100)
+        warning_count        = sum(1 for f in monitored_fills if 70 <= f < 90)
+        full_cans            = sum(1 for f in monitored_fills if f >= 80)
+        needs_collection     = sum(1 for f in monitored_fills if f >= 60)
+        avg_fill             = sum(min(f, 100) for f in monitored_fills) / monitored_count
     else:
-        full_cans = 0
+        overflow_count = critical_count = warning_count = 0
+        full_cans = needs_collection = 0
         avg_fill = 0
-        needs_collection = 0
-        avg_daily_rate = 0
-        overflow_count = 0
-        critical_count = 0
-        warning_count = 0
-        total_collections_last_week = 0
-        fastest_bin = {'daily_rate': 0}
-        slowest_bin = {'daily_rate': 0}
-    
+
+    # Weekly collections = zero-fill records created in the past 7 days
+    total_collections_last_week = FillRecord.objects.filter(
+        fill_level=0,
+        timestamp__gte=week_ago,
+    ).count()
+
+    # Fill rate stats — only meaningful for bins with real AI/manual history
+    # Pull rates from the 200 most-recently-active monitored bins to stay fast
+    from django.db.models import Subquery, OuterRef
+    recent_bin_ids = (
+        FillRecord.objects
+        .filter(source__in=['ai', 'manual'], timestamp__gte=week_ago)
+        .values_list('trashcan_id', flat=True)
+        .distinct()[:200]
+    )
+    rate_samples = []
+    for can in TrashCan.objects.filter(id__in=list(recent_bin_ids)).prefetch_related('fill_records'):
+        rate = can.get_average_daily_fill_rate()
+        if rate != 10.0:  # skip default fallback
+            rate_samples.append(rate)
+
+    avg_daily_rate   = round(sum(rate_samples) / len(rate_samples), 1) if rate_samples else 0
+    fastest_fill_rate = round(max(rate_samples), 1) if rate_samples else 0
+    slowest_fill_rate = round(min(rate_samples), 1) if rate_samples else 0
+
     context = {
-        'total_cans': total_cans,
-        'full_cans': full_cans,
-        'avg_fill': round(avg_fill, 1),
-        'needs_collection': needs_collection,
-        'avg_daily_rate': round(avg_daily_rate, 1),
-        'truck_capacity': truck_capacity,
-        'overflow_count': overflow_count,
-        'critical_count': critical_count,
-        'warning_count': warning_count,
+        'total_cans':                total_cans,
+        'full_cans':                 full_cans,
+        'avg_fill':                  round(avg_fill, 1),
+        'needs_collection':          needs_collection,
+        'avg_daily_rate':            avg_daily_rate,
+        'truck_capacity':            truck_capacity,
+        'overflow_count':            overflow_count,
+        'critical_count':            critical_count,
+        'warning_count':             warning_count,
         'total_collections_last_week': total_collections_last_week,
-        'fastest_fill_rate': round(fastest_bin['daily_rate'], 1),
-        'slowest_fill_rate': round(slowest_bin['daily_rate'], 1),
+        'fastest_fill_rate':         fastest_fill_rate,
+        'slowest_fill_rate':         slowest_fill_rate,
     }
-    
+
     return render(request, 'home.html', context)
 
 
 # Generate heatmap (separate endpoint)
 @require_http_methods(["GET"])
 def generate_heatmap_view(request):
-    trash_cans = TrashCan.objects.all()
-    
-    # Get latest record for each trash can
+    # Only show bins that have actual fill data — avoids iterating 43k empty bins
+    trash_cans = TrashCan.objects.filter(
+        fill_records__isnull=False
+    ).prefetch_related('fill_records').distinct()
+
     latest_records = []
     for can in trash_cans:
-        latest = FillRecord.objects.filter(trashcan=can).order_by('-timestamp').first()
+        latest = can.fill_records.order_by('-timestamp').first()
         if latest:
             latest_records.append((can, latest))
     
@@ -279,23 +290,27 @@ def generate_route_view(request):
     except:
         client = None
     
-    # Get all bins that need collection (>60% OR <1 days until full)
+    # Only consider bins with fill records — the rest have no monitoring data
+    monitored_bins = list(
+        TrashCan.objects.filter(fill_records__isnull=False)
+        .prefetch_related('fill_records')
+        .distinct()
+    )
+
     bins_to_collect = []
-    for can in TrashCan.objects.all():
+    for can in monitored_bins:
         predicted_fill = can.get_predicted_fill_level()
         days_until_full = can.get_days_until_full()
-        
-        # Collect if >60% OR overflowing OR will be full soon (≤1 day)
         if predicted_fill >= 60 or predicted_fill >= 100 or days_until_full <= 1:
             bins_to_collect.append(can)
-    
+
     if not bins_to_collect:
-        # No urgent bins, show top 20 closest to depot
-        all_bins = list(TrashCan.objects.all())
-        # Sort by distance from depot
-        all_bins.sort(key=lambda b: ((b.latitude - DEPOT_LOCATION['lat'])**2 + 
-                                     (b.longitude - DEPOT_LOCATION['lon'])**2)**0.5)
-        bins_to_collect = all_bins[:20]
+        # No urgent bins — show the 20 most-recently filled monitored bins
+        bins_to_collect = sorted(
+            monitored_bins,
+            key=lambda b: b.fill_records.order_by('-timestamp').values_list('timestamp', flat=True).first() or timezone.now(),
+            reverse=True,
+        )[:20]
     
     # Split bins into routes based on truck capacity
     # Use geographic clustering to minimize distance
@@ -779,3 +794,189 @@ def api_list_trashcans(request):
         })
     
     return JsonResponse({'success': True, 'total_bins': len(data), 'trash_cans': data})
+
+
+# ── Phase 2: Public DRF endpoints ────────────────────────────────────────────
+
+GRID_SIZE = {10: 0.05, 11: 0.025, 12: 0.01, 13: 0.005, 14: 0.002}
+
+
+def _cache_get(key):
+    try:
+        return cache.get(key)
+    except Exception:
+        return None
+
+
+def _cache_set(key, value, timeout):
+    try:
+        cache.set(key, value, timeout)
+    except Exception:
+        pass
+
+
+class BinClustersView(APIView):
+    """
+    GET /api/bins/clusters/?zoom=N&north=F&south=F&east=F&west=F
+
+    Groups bins in the bbox into a lat/lon grid keyed by zoom level and
+    returns one cluster record per occupied cell.
+    """
+    def get(self, request):
+        try:
+            zoom = int(request.GET.get('zoom', 12))
+            north = float(request.GET['north'])
+            south = float(request.GET['south'])
+            east = float(request.GET['east'])
+            west = float(request.GET['west'])
+        except (KeyError, ValueError, TypeError):
+            return Response({'error': 'zoom, north, south, east, west are required'}, status=400)
+
+        grid = GRID_SIZE.get(zoom, 0.01)
+        bbox_str = f"{north:.4f},{south:.4f},{east:.4f},{west:.4f}"
+        cache_key = f"bins:clusters:zoom{zoom}:{hashlib.md5(bbox_str.encode()).hexdigest()}"
+
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        bins = list(
+            TrashCan.objects
+            .filter(
+                latitude__gte=south, latitude__lte=north,
+                longitude__gte=west, longitude__lte=east,
+            )
+            .values('latitude', 'longitude', 'district_id')
+        )
+
+        cells = defaultdict(list)
+        for b in bins:
+            cell_lat = math.floor(b['latitude'] / grid) * grid
+            cell_lon = math.floor(b['longitude'] / grid) * grid
+            cells[(cell_lat, cell_lon)].append(b['district_id'])
+
+        clusters = [
+            {
+                'lat': round(cell_lat + grid / 2, 6),
+                'lon': round(cell_lon + grid / 2, 6),
+                'count': len(district_ids),
+                'district_id': Counter(district_ids).most_common(1)[0][0],
+            }
+            for (cell_lat, cell_lon), district_ids in cells.items()
+        ]
+
+        result = {'clusters': clusters}
+        _cache_set(cache_key, result, 600)
+        return Response(result)
+
+
+class BinViewportView(APIView):
+    """
+    GET /api/bins/viewport/?north=F&south=F&east=F&west=F
+
+    Returns individual bins visible in the bounding box (max 500) as a
+    GeoJSON FeatureCollection.  fill_level comes from the latest FillRecord.
+    """
+    def get(self, request):
+        try:
+            north = float(request.GET['north'])
+            south = float(request.GET['south'])
+            east = float(request.GET['east'])
+            west = float(request.GET['west'])
+        except (KeyError, ValueError, TypeError):
+            return Response({'error': 'north, south, east, west are required'}, status=400)
+
+        bbox_str = f"{north:.4f},{south:.4f},{east:.4f},{west:.4f}"
+        cache_key = f"bins:viewport:{hashlib.md5(bbox_str.encode()).hexdigest()}"
+
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        latest_fill = (
+            FillRecord.objects
+            .filter(trashcan=OuterRef('pk'))
+            .order_by('-timestamp')
+            .values('fill_level')[:1]
+        )
+
+        bins = list(
+            TrashCan.objects
+            .filter(
+                latitude__gte=south, latitude__lte=north,
+                longitude__gte=west, longitude__lte=east,
+            )
+            .annotate(fill_level=Subquery(latest_fill))
+            .values(
+                'id', 'latitude', 'longitude',
+                'district_id', 'district_name',
+                'waste_type', 'bin_status', 'fill_level',
+            )[:500]
+        )
+
+        features = [
+            {
+                'type': 'Feature',
+                'geometry': {'type': 'Point', 'coordinates': [b['longitude'], b['latitude']]},
+                'properties': {
+                    'id': b['id'],
+                    'fill_level': b['fill_level'],
+                    'district_id': b['district_id'],
+                    'district_name': b['district_name'],
+                    'waste_type': b['waste_type'],
+                    'bin_status': b['bin_status'],
+                },
+            }
+            for b in bins
+        ]
+
+        result = {'type': 'FeatureCollection', 'features': features}
+        _cache_set(cache_key, result, 300)
+        return Response(result)
+
+
+class DistrictsView(APIView):
+    """
+    GET /api/districts/
+
+    Returns all 24 districts with bin_count, active_count, monitored_count.
+    Cached for 1 hour.
+    """
+    def get(self, request):
+        cache_key = 'bins:districts'
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        districts_qs = list(
+            TrashCan.objects
+            .values('district_id', 'district_name')
+            .annotate(
+                bin_count=Count('id'),
+                active_count=Count('id', filter=Q(bin_status='active')),
+            )
+            .order_by('district_id')
+        )
+
+        monitored_map = {
+            d['district_id']: d['monitored_count']
+            for d in TrashCan.objects
+            .filter(fill_records__isnull=False)
+            .values('district_id')
+            .annotate(monitored_count=Count('id', distinct=True))
+        }
+
+        districts = [
+            {
+                'district_id': d['district_id'],
+                'district_name': d['district_name'],
+                'bin_count': d['bin_count'],
+                'active_count': d['active_count'],
+                'monitored_count': monitored_map.get(d['district_id'], 0),
+            }
+            for d in districts_qs
+        ]
+
+        result = {'districts': districts}
+        _cache_set(cache_key, result, 3600)
+        return Response(result)
