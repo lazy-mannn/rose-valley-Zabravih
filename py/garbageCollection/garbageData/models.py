@@ -4,12 +4,29 @@ from datetime import timedelta
 import secrets
 
 class TrashCan(models.Model):
+    # Primary key = Sofia API's container id (set during sync)
     id = models.IntegerField(primary_key=True)
     latitude = models.FloatField()
     longitude = models.FloatField()
     last_emptied = models.DateTimeField(default=timezone.now)
-    nfc_uid = models.CharField(max_length=50, blank=True, null=True, unique=True, 
+    nfc_uid = models.CharField(max_length=50, blank=True, null=True, unique=True,
                                 help_text="NFC tag UID (hardware address)")
+
+    # ── Sofia API fields (populated by sync_sofia_bins) ──────────────────
+    public_number   = models.CharField(max_length=40, blank=True, default='')
+    district_id     = models.IntegerField(null=True, blank=True, db_index=True,
+                                          help_text="Sofia district number 1–24")
+    district_name   = models.CharField(max_length=60, blank=True, default='')
+    waste_type      = models.CharField(max_length=30, blank=True, default='general',
+                                       help_text="e.g. general, recycling, organic")
+    bin_status      = models.CharField(max_length=20, blank=True, default='pending',
+                                       help_text="Sofia API status: pending, active, …")
+    capacity_volume = models.FloatField(null=True, blank=True,
+                                        help_text="Bin volume in cubic metres")
+    bin_count       = models.IntegerField(default=1,
+                                          help_text="Number of bins at this location")
+    last_cleaned    = models.DateTimeField(null=True, blank=True,
+                                           help_text="Last collection per Sofia API")
 
     def __str__(self):
         return f"Bin {self.id}" + (f" (NFC: {self.nfc_uid})" if self.nfc_uid else "")

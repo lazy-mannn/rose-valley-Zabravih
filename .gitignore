@@ -16,6 +16,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+# Don't ignore the Next.js app source files
+!frontend/app/lib/
 parts/
 sdist/
 var/

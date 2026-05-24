@@ -1,0 +1,16 @@
+[Unit]
+Description=gunicorn daemon for Django (kazan.zabravih.org)
+After=network.target
+
+[Service]
+User=main
+Group=www-data
+WorkingDirectory=/home/main/rose-valley-Zabravih/py/garbageCollection
+ExecStart=/home/main/rose-valley-Zabravih/py/env/bin/gunicorn \
+    --access-logfile - \
+    --workers 17 \
+    --bind 127.0.0.1:8000 \
+    garbageCollection.wsgi:application
+
+[Install]
+WantedBy=multi-user.target

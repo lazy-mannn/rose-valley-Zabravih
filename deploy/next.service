@@ -1,0 +1,15 @@
+[Unit]
+Description=Next.js frontend for kazan.zabravih.org
+After=network.target
+
+[Service]
+User=main
+WorkingDirectory=/home/main/rose-valley-Zabravih/frontend
+ExecStart=/home/main/.nvm/versions/node/v24.16.0/bin/node /home/main/rose-valley-Zabravih/frontend/node_modules/.bin/next start
+Restart=always
+RestartSec=5
+Environment=PORT=3000
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

@@ -1,249 +1,488 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard - Garbage Collection{% endblock %}
+{% block title %}Dashboard — SmartBin Monitor{% endblock %}
 
 {% block extra_css %}
 <style>
-    .map-view-container {
-        position: relative;
-        height: 750px;
-        border: 2px solid #ddd;
-        border-radius: 8px;
+    /* ── Page header ── */
+    .page-header {
+        margin-bottom: 1.5rem;
+    }
+    .page-header h1 {
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0 0 0.2rem;
+        letter-spacing: -0.02em;
+    }
+    .page-header p {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin: 0;
+    }
+
+    /* ── Stat cards (top row) ── */
+    .stat-card-main {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        padding: 1.1rem 1.25rem;
+        box-shadow: var(--shadow-card);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: transform 0.2s, background 0.2s;
+        height: 100%;
+    }
+    .stat-card-main:hover { transform: translateY(-3px); background: var(--bg-card-hover); }
+    .stat-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+    .stat-icon.blue  { background: rgba(79,142,247,0.15); color: var(--accent-blue); }
+    .stat-icon.red   { background: rgba(240,82,82,0.15);  color: var(--accent-red); }
+    .stat-icon.yel   { background: rgba(245,166,35,0.15); color: var(--accent-yellow); }
+    .stat-icon.cyan  { background: rgba(34,211,238,0.15); color: var(--accent-cyan); }
+    .stat-body { min-width: 0; }
+    .stat-value {
+        font-size: 1.6rem;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--text-primary);
+    }
+    .stat-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 0.2rem;
+        white-space: nowrap;
         overflow: hidden;
+        text-overflow: ellipsis;
     }
-    .map-controls {
-        position: absolute;
-        top: 15px;
-        left: 15px;
-        z-index: 1000;
-        background: rgba(255, 255, 255, 0.95);
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        max-width: 280px;
+
+    /* ── Stat cards (secondary row) ── */
+    .stat-card-mini {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 0.85rem 1rem;
+        text-align: center;
+        transition: transform 0.2s, background 0.2s;
+        height: 100%;
     }
-    .btn-map-view {
-        margin-right: 5px;
-        margin-bottom: 10px;
-        width: 48%;
+    .stat-card-mini:hover { transform: translateY(-3px); background: var(--bg-card-hover); }
+    .stat-card-mini .mini-val {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1;
     }
-    .capacity-control {
-        margin-top: 15px;
-        padding-top: 15px;
-        border-top: 2px solid #e9ecef;
+    .stat-card-mini .mini-label {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
     }
-    .route-selector {
-        margin-top: 15px;
-        padding-top: 15px;
-        border-top: 2px solid #e9ecef;
-        display: none;
+    .stat-card-mini .mini-title {
+        font-size: 0.78rem;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
     }
-    .route-stats {
-        position: absolute;
-        bottom: 15px;
-        right: 15px;
-        z-index: 1000;
-        background: rgba(255, 255, 255, 0.95);
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        min-width: 250px;
-        display: none;
+
+    /* ── Section headings ── */
+    .section-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 0.75rem;
     }
-    .spinner {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 999;
+
+    /* ── Map layout ── */
+    .map-section {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
     }
-    .route-badge {
-        display: inline-block;
-        padding: 5px 10px;
-        margin: 3px;
-        border-radius: 15px;
+    @media (min-width: 1024px) {
+        .map-section {
+            grid-template-columns: 260px 1fr;
+            align-items: start;
+        }
+    }
+
+    /* Map controls panel */
+    .map-panel {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        padding: 1.1rem;
+        box-shadow: var(--shadow-card);
+    }
+    .map-panel-title {
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted);
+        margin-bottom: 0.85rem;
+    }
+    .view-toggle {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        margin-bottom: 1.1rem;
+    }
+    .btn-view {
+        padding: 0.5rem 0.5rem;
+        border-radius: 9px;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        font-weight: 500;
         cursor: pointer;
-        transition: all 0.3s;
-        font-size: 12px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+    }
+    .btn-view:hover {
+        background: rgba(255,255,255,0.05);
+        color: var(--text-primary);
+    }
+    .btn-view.active {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+        color: #fff;
+    }
+    .btn-view.active.green-active {
+        background: var(--accent-green);
+        border-color: var(--accent-green);
+    }
+
+    .divider { border-top: 1px solid var(--border-color); margin: 0.9rem 0; }
+
+    .panel-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .dark-input {
+        background: rgba(255,255,255,0.05) !important;
+        border: 1px solid var(--border-color) !important;
+        color: var(--text-primary) !important;
+        border-radius: 8px !important;
+        font-size: 0.82rem !important;
+    }
+    .dark-input:focus {
+        background: rgba(255,255,255,0.08) !important;
+        border-color: var(--accent-blue) !important;
+        box-shadow: 0 0 0 2px rgba(79,142,247,0.2) !important;
+        color: var(--text-primary) !important;
+    }
+    .btn-update {
+        background: var(--accent-blue);
+        border: none;
+        color: #fff;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        padding: 0.35rem 0.75rem;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        white-space: nowrap;
+    }
+    .btn-update:hover { opacity: 0.85; }
+
+    /* Route badges */
+    .route-badges-wrap { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }
+    .route-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.65rem;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.72rem;
+        font-weight: 600;
         border: 2px solid transparent;
+        color: #fff;
+        opacity: 0.8;
     }
-    .route-badge:hover {
-        transform: scale(1.05);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    .route-badge:hover { opacity: 1; transform: scale(1.05); }
+    .route-badge.active { border-color: #fff; opacity: 1; }
+
+    /* Route stats */
+    .route-stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-top: 0.4rem;
     }
-    .route-badge.active {
-        border: 2px solid #333;
-        font-weight: bold;
+    .route-stat-item {
+        background: rgba(255,255,255,0.04);
+        border-radius: 8px;
+        padding: 0.5rem 0.6rem;
     }
-    .stat-card {
-        transition: transform 0.2s;
+    .route-stat-item .rs-val {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-primary);
     }
-    .stat-card:hover {
-        transform: translateY(-5px);
+    .route-stat-item .rs-key {
+        font-size: 0.68rem;
+        color: var(--text-muted);
+        margin-top: 0.1rem;
     }
+
+    /* Map container */
+    .map-frame-wrap {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: var(--shadow-card);
+        position: relative;
+        min-height: 420px;
+        height: 60vw;
+        max-height: 680px;
+    }
+    @media (max-width: 1023px) {
+        .map-frame-wrap {
+            height: 65vw;
+            min-height: 320px;
+            max-height: 520px;
+        }
+    }
+    @media (max-width: 576px) {
+        .map-frame-wrap {
+            height: 75vw;
+            min-height: 260px;
+        }
+    }
+    #mapContent {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0; left: 0;
+    }
+    #mapContent iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+    .map-spinner-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15,17,23,0.6);
+        backdrop-filter: blur(4px);
+        z-index: 10;
+        border-radius: 14px;
+    }
+    .map-spinner-overlay.hidden { display: none; }
+
+    /* Mobile: stack controls below map */
+    @media (max-width: 1023px) {
+        .map-panel { order: 2; }
+        .map-frame-wrap-outer { order: 1; }
+        .map-section { grid-template-columns: 1fr; }
+    }
+
+    /* Pill badge for stats */
+    .val-badge {
+        display: inline-block;
+        padding: 0.1em 0.55em;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        vertical-align: middle;
+    }
+    .val-badge.blue  { background: rgba(79,142,247,0.2); color: var(--accent-blue); }
+    .val-badge.red   { background: rgba(240,82,82,0.2);  color: var(--accent-red); }
+    .val-badge.green { background: rgba(52,196,114,0.2); color: var(--accent-green); }
+    .val-badge.yel   { background: rgba(245,166,35,0.2); color: var(--accent-yellow); }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <h1 class="mb-4"><i class="fas fa-trash-alt"></i> Garbage Collection Dashboard</h1>
-    
-    <!-- Statistics Cards -->
-    <div class="row mb-3">
-        <!-- Row 1: Main Stats -->
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="card text-white bg-primary stat-card">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-dumpster"></i> Total Bins</h5>
-                    <h2>{{ total_cans }}</h2>
-                    <small>Monitored locations</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="card text-white bg-danger stat-card">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-exclamation-triangle"></i> Full Bins</h5>
-                    <h2>{{ full_cans }}</h2>
-                    <small>≥80% capacity</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="card text-white bg-warning stat-card">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-truck"></i> Need Collection</h5>
-                    <h2>{{ needs_collection }}</h2>
-                    <small>>60% or <1 day</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="card text-white bg-info stat-card">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-chart-line"></i> Avg Fill Rate</h5>
-                    <h2>{{ avg_daily_rate }}%</h2>
-                    <small>per day</small>
-                </div>
+<!-- Page header -->
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+    <div>
+        <h1><i class="fas fa-chart-line" style="color:var(--accent-blue);margin-right:0.4rem;"></i>Dashboard</h1>
+        <p>Live overview of all monitored bins and collection routes</p>
+    </div>
+    <a href="{% url 'garbageData:pitch' %}" style="
+        display:inline-flex;align-items:center;gap:0.5rem;
+        background:linear-gradient(135deg,#028090,#02C39A);
+        color:#fff;font-family:'Syne',sans-serif;font-weight:700;
+        font-size:0.82rem;padding:0.55rem 1.1rem;border-radius:9px;
+        text-decoration:none;letter-spacing:0.02em;white-space:nowrap;
+        box-shadow:0 4px 14px rgba(2,128,144,0.35);
+        transition:opacity 0.2s,transform 0.2s;
+    " onmouseover="this.style.opacity='0.88';this.style.transform='translateY(-2px)'"
+       onmouseout="this.style.opacity='1';this.style.transform='none'">
+        <i class="fas fa-presentation-screen"></i>
+        Pitch Deck →
+    </a>
+</div>
+
+<!-- ── Primary stat row ── -->
+<p class="section-label">Overview</p>
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card-main">
+            <div class="stat-icon blue"><i class="fas fa-dumpster"></i></div>
+            <div class="stat-body">
+                <div class="stat-value">{{ total_cans }}</div>
+                <div class="stat-label">Total Bins</div>
             </div>
         </div>
     </div>
-
-    <!-- Row 2: Additional Stats (Smaller) -->
-    <div class="row mb-4">
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card border-danger stat-card h-100">
-                <div class="card-body text-center py-2">
-                    <h6 class="text-danger mb-1"><i class="fas fa-explosion"></i> Overflow</h6>
-                    <h4 class="mb-0">{{ overflow_count }}</h4>
-                    <small class="text-muted">≥100%</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card border-warning stat-card h-100">
-                <div class="card-body text-center py-2">
-                    <h6 class="text-warning mb-1"><i class="fas fa-circle-exclamation"></i> Critical</h6>
-                    <h4 class="mb-0">{{ critical_count }}</h4>
-                    <small class="text-muted">90-99%</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card border-secondary stat-card h-100">
-                <div class="card-body text-center py-2">
-                    <h6 class="text-secondary mb-1"><i class="fas fa-triangle-exclamation"></i> Warning</h6>
-                    <h4 class="mb-0">{{ warning_count }}</h4>
-                    <small class="text-muted">70-89%</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card border-success stat-card h-100">
-                <div class="card-body text-center py-2">
-                    <h6 class="text-success mb-1"><i class="fas fa-calendar-week"></i> Weekly</h6>
-                    <h4 class="mb-0">{{ total_collections_last_week }}</h4>
-                    <small class="text-muted">Collections</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card border-primary stat-card h-100">
-                <div class="card-body text-center py-2">
-                    <h6 class="text-primary mb-1"><i class="fas fa-arrow-up"></i> Fastest</h6>
-                    <h4 class="mb-0">{{ fastest_fill_rate }}%</h4>
-                    <small class="text-muted">per day</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card border-info stat-card h-100">
-                <div class="card-body text-center py-2">
-                    <h6 class="text-info mb-1"><i class="fas fa-arrow-down"></i> Slowest</h6>
-                    <h4 class="mb-0">{{ slowest_fill_rate }}%</h4>
-                    <small class="text-muted">per day</small>
-                </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card-main">
+            <div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stat-body">
+                <div class="stat-value">{{ full_cans }}</div>
+                <div class="stat-label">Full (&ge;80%)</div>
             </div>
         </div>
     </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card-main">
+            <div class="stat-icon yel"><i class="fas fa-truck"></i></div>
+            <div class="stat-body">
+                <div class="stat-value">{{ needs_collection }}</div>
+                <div class="stat-label">Need Collection</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card-main">
+            <div class="stat-icon cyan"><i class="fas fa-chart-line"></i></div>
+            <div class="stat-body">
+                <div class="stat-value">{{ avg_daily_rate }}%</div>
+                <div class="stat-label">Avg Fill / Day</div>
+            </div>
+        </div>
+    </div>
+</div>
 
-    <!-- Map View -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="map-view-container">
-                <!-- Map Controls -->
-                <div class="map-controls">
-                    <div class="d-flex justify-content-between">
-                        <button class="btn btn-sm btn-primary btn-map-view active" data-view="heatmap">
-                            <i class="fas fa-fire"></i> Heatmap
-                        </button>
-                        <button class="btn btn-sm btn-success btn-map-view" data-view="route">
-                            <i class="fas fa-route"></i> Routes
-                        </button>
-                    </div>
-                    
-                    <div class="capacity-control">
-                        <label for="truckCapacity" class="form-label">
-                            <strong><i class="fas fa-truck"></i> Truck Capacity:</strong>
-                        </label>
-                        <div class="input-group input-group-sm">
-                            <input type="number" class="form-control" id="truckCapacity" 
-                                   value="{{ truck_capacity }}" min="1" max="50">
-                            <button class="btn btn-primary" id="updateCapacity">
-                                <i class="fas fa-sync"></i> Update
-                            </button>
-                        </div>
-                        <small class="text-muted">Bins per truck load</small>
-                    </div>
+<!-- ── Secondary stat row ── -->
+<p class="section-label" style="margin-top:1.25rem;">Breakdown</p>
+<div class="row g-3 mb-4">
+    <div class="col-4 col-md-2">
+        <div class="stat-card-mini">
+            <div class="mini-title" style="color:var(--accent-red)"><i class="fas fa-explosion"></i> Overflow</div>
+            <div class="mini-val">{{ overflow_count }}</div>
+            <div class="mini-label">&ge;100%</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card-mini">
+            <div class="mini-title" style="color:var(--accent-yellow)"><i class="fas fa-circle-exclamation"></i> Critical</div>
+            <div class="mini-val">{{ critical_count }}</div>
+            <div class="mini-label">90–99%</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card-mini">
+            <div class="mini-title" style="color:var(--text-muted)"><i class="fas fa-triangle-exclamation"></i> Warning</div>
+            <div class="mini-val">{{ warning_count }}</div>
+            <div class="mini-label">70–89%</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card-mini">
+            <div class="mini-title" style="color:var(--accent-green)"><i class="fas fa-calendar-week"></i> Weekly</div>
+            <div class="mini-val">{{ total_collections_last_week }}</div>
+            <div class="mini-label">Collections</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card-mini">
+            <div class="mini-title" style="color:var(--accent-blue)"><i class="fas fa-arrow-trend-up"></i> Fastest</div>
+            <div class="mini-val">{{ fastest_fill_rate }}%</div>
+            <div class="mini-label">per day</div>
+        </div>
+    </div>
+    <div class="col-4 col-md-2">
+        <div class="stat-card-mini">
+            <div class="mini-title" style="color:var(--accent-cyan)"><i class="fas fa-arrow-trend-down"></i> Slowest</div>
+            <div class="mini-val">{{ slowest_fill_rate }}%</div>
+            <div class="mini-label">per day</div>
+        </div>
+    </div>
+</div>
 
-                    <!-- Route Selector (shown only in route view) -->
-                    <div class="route-selector" id="routeSelector">
-                        <label class="form-label">
-                            <strong><i class="fas fa-map-marked-alt"></i> Select Route:</strong>
-                        </label>
-                        <div id="routeBadges"></div>
-                        <small class="text-muted">Click to highlight a route</small>
-                    </div>
-                </div>
+<!-- ── Map section ── -->
+<p class="section-label" style="margin-top:0.5rem;">Map View</p>
+<div class="map-section">
+    <!-- Controls panel -->
+    <div class="map-panel">
+        <div class="map-panel-title"><i class="fas fa-sliders" style="margin-right:0.35rem;"></i>Controls</div>
 
-                <!-- Route Statistics -->
-                <div class="route-stats" id="routeStats">
-                    <h6 class="mb-3"><strong><i class="fas fa-clipboard-list"></i> Route Summary</strong></h6>
-                    <div id="statsContent">
-                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                    </div>
-                </div>
+        <!-- View toggle -->
+        <div class="view-toggle">
+            <button class="btn-view active" data-view="heatmap" id="btnHeatmap">
+                <i class="fas fa-fire"></i> Heatmap
+            </button>
+            <button class="btn-view" data-view="route" id="btnRoutes">
+                <i class="fas fa-route"></i> Routes
+            </button>
+        </div>
 
-                <!-- Loading Spinner -->
-                <div class="spinner" id="mapSpinner" style="display: none;">
-                    <div class="spinner-border text-primary" role="status">
+        <!-- Truck capacity -->
+        <div class="panel-label"><i class="fas fa-truck"></i> Truck Capacity</div>
+        <div class="d-flex gap-2">
+            <input type="number" class="form-control dark-input" id="truckCapacity"
+                   value="{{ truck_capacity }}" min="1" max="50">
+            <button class="btn-update" id="updateCapacity">
+                <i class="fas fa-arrows-rotate"></i>
+            </button>
+        </div>
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.3rem;">Bins per truck load</div>
+
+        <!-- Route selector (routes view only) -->
+        <div id="routeSelector" style="display:none;">
+            <div class="divider"></div>
+            <div class="panel-label"><i class="fas fa-map-marked-alt"></i> Select Route</div>
+            <div class="route-badges-wrap" id="routeBadges"></div>
+            <div style="font-size:0.68rem;color:var(--text-muted);margin-top:0.5rem;">Tap to highlight a route</div>
+        </div>
+
+        <!-- Route stats (routes view only) -->
+        <div id="routeStats" style="display:none;">
+            <div class="divider"></div>
+            <div class="panel-label"><i class="fas fa-clipboard-list"></i> Route Summary</div>
+            <div id="statsContent"></div>
+        </div>
+    </div>
+
+    <!-- Map frame -->
+    <div class="map-frame-wrap-outer">
+        <div class="map-frame-wrap">
+            <div class="map-spinner-overlay" id="mapSpinner">
+                <div class="d-flex flex-column align-items-center gap-2">
+                    <div class="spinner-border" style="color:var(--accent-blue);width:2rem;height:2rem;" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
+                    <span style="font-size:0.78rem;color:var(--text-muted);">Loading map&hellip;</span>
                 </div>
-
-                <!-- Map Content -->
-                <div id="mapContent" style="width: 100%; height: 100%;"></div>
             </div>
+            <div id="mapContent" style="width:100%;height:100%;"></div>
         </div>
     </div>
 </div>
@@ -253,116 +492,108 @@
 <script>
 let currentView = 'heatmap';
 let truckCapacity = {{ truck_capacity }};
-let routeData = null;
 let selectedRoute = null;
 
-const ROUTE_COLORS = ['blue', 'red', 'green', 'purple', 'orange', 'brown', 'pink', 'cyan'];
+const ROUTE_COLORS = ['#4f8ef7','#f05252','#34c472','#a855f7','#f5a623','#a16207','#ec4899','#22d3ee'];
 
-// Load map view
-function loadMapView(view, capacity = null, highlightRoute = null) {
+function loadMapView(view, capacity, highlightRoute) {
     const mapContent = document.getElementById('mapContent');
     const mapSpinner = document.getElementById('mapSpinner');
     const routeStats = document.getElementById('routeStats');
     const routeSelector = document.getElementById('routeSelector');
-    
-    mapSpinner.style.display = 'block';
+
+    mapSpinner.classList.remove('hidden');
     mapContent.innerHTML = '';
-    
+
     let url = view === 'heatmap' ? '/api/heatmap/' : '/api/route/';
-    if (capacity !== null && view === 'route') {
+    if (view === 'route' && capacity != null) {
         url += `?truck_capacity=${capacity}`;
-        if (highlightRoute !== null) {
-            url += `&highlight=${highlightRoute}`;
-        }
+        if (highlightRoute != null) url += `&highlight=${highlightRoute}`;
     }
-    
+
     fetch(url)
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
             mapContent.innerHTML = data.html;
-            mapSpinner.style.display = 'none';
-            
+            mapSpinner.classList.add('hidden');
+
             if (view === 'route' && data.stats) {
-                routeData = data;
-                
-                // Show route stats
+                // Route stats
                 document.getElementById('statsContent').innerHTML = `
-                    <div style="font-size: 13px; line-height: 1.8;">
-                        <div class="mb-2">
-                            <strong>Total Routes:</strong> 
-                            <span class="badge bg-primary">${data.stats.total_routes}</span>
+                    <div class="route-stats-grid">
+                        <div class="route-stat-item">
+                            <div class="rs-val" style="color:var(--accent-blue)">${data.stats.total_routes}</div>
+                            <div class="rs-key">Routes</div>
                         </div>
-                        <div class="mb-2">
-                            <strong>Bins to Collect:</strong> 
-                            <span class="badge bg-danger">${data.stats.total_bins}</span>
+                        <div class="route-stat-item">
+                            <div class="rs-val" style="color:var(--accent-red)">${data.stats.total_bins}</div>
+                            <div class="rs-key">Bins</div>
                         </div>
-                        <div class="mb-2">
-                            <strong>Truck Capacity:</strong> 
-                            <span class="badge bg-success">${data.stats.truck_capacity}</span>
+                        <div class="route-stat-item">
+                            <div class="rs-val" style="color:var(--accent-green)">${data.stats.truck_capacity}</div>
+                            <div class="rs-key">Capacity</div>
                         </div>
-                        <div class="mb-2">
-                            <strong>Total Distance:</strong> 
-                            <span class="badge bg-warning text-dark">${data.stats.total_distance} km</span>
+                        <div class="route-stat-item">
+                            <div class="rs-val" style="color:var(--accent-yellow)">${data.stats.total_distance} km</div>
+                            <div class="rs-key">Distance</div>
                         </div>
                     </div>
                 `;
                 routeStats.style.display = 'block';
-                
-                // Show route selector
+
+                // Route badges
                 const routeBadges = document.getElementById('routeBadges');
                 routeBadges.innerHTML = '';
                 for (let i = 0; i < data.stats.total_routes; i++) {
-                    const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
                     const badge = document.createElement('span');
-                    badge.className = `route-badge ${selectedRoute === i ? 'active' : ''}`;
-                    badge.style.backgroundColor = color;
-                    badge.style.color = 'white';
+                    badge.className = `route-badge${selectedRoute === i ? ' active' : ''}`;
+                    badge.style.background = ROUTE_COLORS[i % ROUTE_COLORS.length];
                     badge.textContent = `Route ${i + 1}`;
                     badge.dataset.route = i;
                     badge.onclick = () => selectRoute(i);
                     routeBadges.appendChild(badge);
                 }
                 routeSelector.style.display = 'block';
-                
             } else {
                 routeStats.style.display = 'none';
                 routeSelector.style.display = 'none';
             }
         })
-        .catch(error => {
-            console.error('Error loading map:', error);
-            mapContent.innerHTML = '<div class="alert alert-danger m-3">Failed to load map</div>';
-            mapSpinner.style.display = 'none';
+        .catch(() => {
+            mapContent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.85rem;"><i class="fas fa-circle-exclamation" style="margin-right:0.4rem;color:var(--accent-red)"></i>Failed to load map</div>';
+            mapSpinner.classList.add('hidden');
         });
 }
 
-// Select route to highlight
-function selectRoute(routeIdx) {
-    selectedRoute = routeIdx;
-    loadMapView('route', truckCapacity, routeIdx);
+function selectRoute(idx) {
+    selectedRoute = idx;
+    loadMapView('route', truckCapacity, idx);
 }
 
-// View switcher
-document.querySelectorAll('.btn-map-view').forEach(btn => {
-    btn.addEventListener('click', function() {
-        document.querySelectorAll('.btn-map-view').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        currentView = this.getAttribute('data-view');
-        selectedRoute = null;
-        loadMapView(currentView, currentView === 'route' ? truckCapacity : null);
-    });
-});
-
-// Update capacity
-document.getElementById('updateCapacity').addEventListener('click', function() {
-    truckCapacity = parseInt(document.getElementById('truckCapacity').value);
+document.getElementById('btnHeatmap').addEventListener('click', function() {
+    document.getElementById('btnHeatmap').classList.add('active');
+    document.getElementById('btnHeatmap').classList.remove('green-active');
+    document.getElementById('btnRoutes').classList.remove('active');
+    currentView = 'heatmap';
     selectedRoute = null;
-    if (currentView === 'route') {
-        loadMapView('route', truckCapacity);
-    }
+    loadMapView('heatmap', null, null);
 });
 
-// Load initial view
-loadMapView('heatmap');
+document.getElementById('btnRoutes').addEventListener('click', function() {
+    document.getElementById('btnRoutes').classList.add('active', 'green-active');
+    document.getElementById('btnHeatmap').classList.remove('active');
+    currentView = 'route';
+    selectedRoute = null;
+    loadMapView('route', truckCapacity, null);
+});
+
+document.getElementById('updateCapacity').addEventListener('click', function() {
+    truckCapacity = parseInt(document.getElementById('truckCapacity').value) || truckCapacity;
+    selectedRoute = null;
+    if (currentView === 'route') loadMapView('route', truckCapacity, null);
+});
+
+// Initial load
+loadMapView('heatmap', null, null);
 </script>
 {% endblock %}
