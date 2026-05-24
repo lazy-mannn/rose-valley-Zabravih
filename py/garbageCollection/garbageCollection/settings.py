@@ -29,7 +29,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['kazan.zabravih.org', 'localhost', '127.0.0.1']
 
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False  # nginx handles HTTP→HTTPS; gunicorn is HTTP-only internally
 CSRF_TRUSTED_ORIGINS = ['https://kazan.zabravih.org']
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_HSTS_SECONDS = 31536000

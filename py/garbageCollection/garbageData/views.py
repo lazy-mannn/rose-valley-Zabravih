@@ -16,7 +16,7 @@ import pytz
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.core.cache import cache
-from django.db.models import Count, Q, Subquery, OuterRef
+from django.db.models import Count, Q, Subquery, OuterRef, Avg
 import hashlib
 import math
 from collections import defaultdict, Counter
@@ -798,7 +798,15 @@ def api_list_trashcans(request):
 
 # ── Phase 2: Public DRF endpoints ────────────────────────────────────────────
 
-GRID_SIZE = {10: 0.05, 11: 0.025, 12: 0.01, 13: 0.005, 14: 0.002}
+# Degrees per grid cell at each zoom level.
+# Chosen so the initial zoom-11 view of Sofia (~0.28°×0.60°) shows ~30-40 clusters.
+GRID_SIZE = {
+    9:  0.60,   # ~5 clusters city-wide — large areas
+    10: 0.30,   # ~8 clusters
+    11: 0.15,   # ~12 clusters (initial map zoom)
+    12: 0.10,   # ~18 clusters
+    13: 0.05,   # ~35 clusters — fine detail before individual bins
+}
 
 
 def _cache_get(key):
@@ -815,58 +823,52 @@ def _cache_set(key, value, timeout):
         pass
 
 
+def _round_bbox(north, south, east, west, snap):
+    """Round bbox outward to nearest 'snap' degrees for better cache hit rate."""
+    return (
+        math.ceil(north / snap) * snap,
+        math.floor(south / snap) * snap,
+        math.ceil(east  / snap) * snap,
+        math.floor(west  / snap) * snap,
+    )
+
+
 class BinClustersView(APIView):
     """
-    GET /api/bins/clusters/?zoom=N&north=F&south=F&east=F&west=F
-
-    Groups bins in the bbox into a lat/lon grid keyed by zoom level and
-    returns one cluster record per occupied cell.
+    GET /api/bins/clusters/
+    Returns one cluster per district, positioned at the district's centroid.
+    zoom/bbox params accepted but ignored — district view is always global.
     """
     def get(self, request):
-        try:
-            zoom = int(request.GET.get('zoom', 12))
-            north = float(request.GET['north'])
-            south = float(request.GET['south'])
-            east = float(request.GET['east'])
-            west = float(request.GET['west'])
-        except (KeyError, ValueError, TypeError):
-            return Response({'error': 'zoom, north, south, east, west are required'}, status=400)
-
-        grid = GRID_SIZE.get(zoom, 0.01)
-        bbox_str = f"{north:.4f},{south:.4f},{east:.4f},{west:.4f}"
-        cache_key = f"bins:clusters:zoom{zoom}:{hashlib.md5(bbox_str.encode()).hexdigest()}"
-
+        cache_key = 'bins:clusters:districts:v1'
         cached = _cache_get(cache_key)
         if cached is not None:
             return Response(cached)
 
-        bins = list(
+        rows = (
             TrashCan.objects
-            .filter(
-                latitude__gte=south, latitude__lte=north,
-                longitude__gte=west, longitude__lte=east,
+            .filter(district_id__isnull=False)
+            .values('district_id')
+            .annotate(
+                count=Count('id'),
+                lat=Avg('latitude'),
+                lon=Avg('longitude'),
             )
-            .values('latitude', 'longitude', 'district_id')
         )
-
-        cells = defaultdict(list)
-        for b in bins:
-            cell_lat = math.floor(b['latitude'] / grid) * grid
-            cell_lon = math.floor(b['longitude'] / grid) * grid
-            cells[(cell_lat, cell_lon)].append(b['district_id'])
 
         clusters = [
             {
-                'lat': round(cell_lat + grid / 2, 6),
-                'lon': round(cell_lon + grid / 2, 6),
-                'count': len(district_ids),
-                'district_id': Counter(district_ids).most_common(1)[0][0],
+                'lat': round(r['lat'], 5),
+                'lon': round(r['lon'], 5),
+                'count': r['count'],
+                'district_id': r['district_id'],
             }
-            for (cell_lat, cell_lon), district_ids in cells.items()
+            for r in rows
+            if r['lat'] is not None and r['lon'] is not None
         ]
 
         result = {'clusters': clusters}
-        _cache_set(cache_key, result, 600)
+        _cache_set(cache_key, result, 3600)
         return Response(result)
 
 
@@ -886,8 +888,9 @@ class BinViewportView(APIView):
         except (KeyError, ValueError, TypeError):
             return Response({'error': 'north, south, east, west are required'}, status=400)
 
-        bbox_str = f"{north:.4f},{south:.4f},{east:.4f},{west:.4f}"
-        cache_key = f"bins:viewport:{hashlib.md5(bbox_str.encode()).hexdigest()}"
+        rn, rs, re, rw = _round_bbox(north, south, east, west, snap=0.002)
+        bbox_str = f"{rn:.4f},{rs:.4f},{re:.4f},{rw:.4f}"
+        cache_key = f"bins:viewport:v3:{hashlib.md5(bbox_str.encode()).hexdigest()}"
 
         cached = _cache_get(cache_key)
         if cached is not None:
@@ -911,6 +914,8 @@ class BinViewportView(APIView):
                 'id', 'latitude', 'longitude',
                 'district_id', 'district_name',
                 'waste_type', 'bin_status', 'fill_level',
+                'public_number', 'capacity_volume', 'bin_count', 'last_cleaned',
+                'container_type',
             )[:500]
         )
 
@@ -925,6 +930,11 @@ class BinViewportView(APIView):
                     'district_name': b['district_name'],
                     'waste_type': b['waste_type'],
                     'bin_status': b['bin_status'],
+                    'public_number': b['public_number'] or '',
+                    'capacity_volume': b['capacity_volume'],
+                    'bin_count': b['bin_count'],
+                    'last_cleaned': b['last_cleaned'].isoformat() if b['last_cleaned'] else None,
+                    'container_type': b['container_type'] or '',
                 },
             }
             for b in bins
@@ -939,29 +949,34 @@ class DistrictsView(APIView):
     """
     GET /api/districts/
 
-    Returns all 24 districts with bin_count, active_count, monitored_count.
+    Returns the 24 official districts (district_id 1-24) with bin counts,
+    plus overall totals broken down by waste type.
     Cached for 1 hour.
     """
     def get(self, request):
-        cache_key = 'bins:districts'
+        cache_key = 'bins:districts:v4'
         cached = _cache_get(cache_key)
         if cached is not None:
             return Response(cached)
 
+        # Only the 24 numbered official districts — excludes coloured bins (district_id=None)
         districts_qs = list(
             TrashCan.objects
+            .filter(district_id__isnull=False)
             .values('district_id', 'district_name')
             .annotate(
                 bin_count=Count('id'),
                 active_count=Count('id', filter=Q(bin_status='active')),
+                center_lat=Avg('latitude'),
+                center_lon=Avg('longitude'),
             )
-            .order_by('district_id')
+            .order_by('district_name')
         )
 
         monitored_map = {
             d['district_id']: d['monitored_count']
             for d in TrashCan.objects
-            .filter(fill_records__isnull=False)
+            .filter(fill_records__isnull=False, district_id__isnull=False)
             .values('district_id')
             .annotate(monitored_count=Count('id', distinct=True))
         }
@@ -973,10 +988,120 @@ class DistrictsView(APIView):
                 'bin_count': d['bin_count'],
                 'active_count': d['active_count'],
                 'monitored_count': monitored_map.get(d['district_id'], 0),
+                'center_lat': round(d['center_lat'], 5) if d['center_lat'] is not None else None,
+                'center_lon': round(d['center_lon'], 5) if d['center_lon'] is not None else None,
             }
             for d in districts_qs
         ]
 
-        result = {'districts': districts}
+        grey_bins      = TrashCan.objects.filter(waste_type='general').count()
+        coloured_bins  = TrashCan.objects.exclude(waste_type='general').count()
+        active_bins    = TrashCan.objects.filter(bin_status='active').count()
+        monitored_bins = TrashCan.objects.filter(fill_records__isnull=False).distinct().count()
+
+        result = {
+            'districts': districts,
+            'totals': {
+                'grey_bins':     grey_bins,
+                'coloured_bins': coloured_bins,
+                'active_bins':   active_bins,
+                'monitored_bins': monitored_bins,
+            },
+        }
         _cache_set(cache_key, result, 3600)
         return Response(result)
+
+
+class DistrictBoundariesView(APIView):
+    """
+    GET /api/districts/boundaries/
+    Returns a GeoJSON FeatureCollection of convex hulls computed from bin coordinates
+    per district. Cached for 24 h — changes only when bins are re-synced.
+    """
+    def get(self, request):
+        cache_key = 'bins:district_boundaries:v1'
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        from scipy.spatial import ConvexHull
+        import numpy as np
+
+        qs = (
+            TrashCan.objects
+            .filter(waste_type='general', district_id__isnull=False)
+            .values_list('district_id', 'district_name', 'latitude', 'longitude')
+        )
+
+        districts: dict[int, dict] = {}
+        for district_id, district_name, lat, lon in qs:
+            if district_id not in districts:
+                districts[district_id] = {'name': district_name, 'pts': []}
+            districts[district_id]['pts'].append([lon, lat])
+
+        features = []
+        for district_id, info in sorted(districts.items()):
+            pts = np.array(info['pts'])
+            if len(pts) < 4:
+                continue
+            try:
+                hull = ConvexHull(pts)
+                hull_pts = pts[hull.vertices].tolist()
+                hull_pts.append(hull_pts[0])  # close ring
+                features.append({
+                    'type': 'Feature',
+                    'geometry': {'type': 'Polygon', 'coordinates': [hull_pts]},
+                    'properties': {
+                        'district_id': district_id,
+                        'name': info['name'],
+                    },
+                })
+            except Exception:
+                continue
+
+        result = {'type': 'FeatureCollection', 'features': features}
+        _cache_set(cache_key, result, 86400)
+        return Response(result)
+
+
+class BinDetailView(APIView):
+    """
+    GET /api/bins/<id>/
+    Public: single bin with all fields + last 30 fill records (oldest first).
+    """
+    def get(self, request, bin_id):
+        try:
+            b = TrashCan.objects.get(id=bin_id)
+        except TrashCan.DoesNotExist:
+            return Response({'error': 'Bin not found'}, status=404)
+
+        history = list(
+            FillRecord.objects
+            .filter(trashcan=b)
+            .order_by('-timestamp')
+            .values('timestamp', 'fill_level', 'source')[:30]
+        )
+        history.reverse()
+
+        return Response({
+            'id': b.id,
+            'latitude': b.latitude,
+            'longitude': b.longitude,
+            'waste_type': b.waste_type,
+            'bin_status': b.bin_status,
+            'public_number': b.public_number,
+            'district_id': b.district_id,
+            'district_name': b.district_name,
+            'capacity_volume': b.capacity_volume,
+            'bin_count': b.bin_count,
+            'last_cleaned': b.last_cleaned.isoformat() if b.last_cleaned else None,
+            'container_type': b.container_type or '',
+            'fill_history': [
+                {
+                    'timestamp': r['timestamp'].isoformat(),
+                    'fill_level': r['fill_level'],
+                    'source': r['source'],
+                }
+                for r in history
+            ],
+        })

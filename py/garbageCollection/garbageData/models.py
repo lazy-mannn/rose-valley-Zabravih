@@ -13,7 +13,8 @@ class TrashCan(models.Model):
                                 help_text="NFC tag UID (hardware address)")
 
     # ── Sofia API fields (populated by sync_sofia_bins) ──────────────────
-    public_number   = models.CharField(max_length=40, blank=True, default='')
+    public_number   = models.CharField(max_length=120, blank=True, default='',
+                                        help_text="Sofia public number or street address (coloured bins)")
     district_id     = models.IntegerField(null=True, blank=True, db_index=True,
                                           help_text="Sofia district number 1–24")
     district_name   = models.CharField(max_length=60, blank=True, default='')
@@ -27,6 +28,8 @@ class TrashCan(models.Model):
                                           help_text="Number of bins at this location")
     last_cleaned    = models.DateTimeField(null=True, blank=True,
                                            help_text="Last collection per Sofia API")
+    container_type  = models.CharField(max_length=20, blank=True, default='',
+                                       help_text="Container shape: iglu, bobar, etc.")
 
     def __str__(self):
         return f"Bin {self.id}" + (f" (NFC: {self.nfc_uid})" if self.nfc_uid else "")
@@ -201,6 +204,10 @@ class TrashCan(models.Model):
     class Meta:
         verbose_name = "Trash Can"
         verbose_name_plural = "Trash Cans"
+        indexes = [
+            models.Index(fields=['latitude', 'longitude'], name='trashcan_lat_lon_idx'),
+            models.Index(fields=['waste_type'],             name='trashcan_waste_type_idx'),
+        ]
 
 
 class FillRecord(models.Model):

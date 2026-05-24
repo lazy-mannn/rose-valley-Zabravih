@@ -6,32 +6,47 @@
 
 ## Project overview
 
-Django + Next.js web app for smart waste collection in Sofia. Tracks ~43,511 real
-grey waste bins, visualises fill levels on a map, optimises truck routes, and
-connects to Raspberry Pi cameras on trucks via API keys.
+Django + Next.js web app for smart waste collection in Sofia. Tracks **42,662 grey bins**
++ **4,599 coloured separation bins**, visualises them on a Leaflet map with cluster/viewport
+zoom switching, district overlays, and a bin detail page with fill history chart.
 
 **Repo:** `/home/main/rose-valley-Zabravih/`
 **Live:** `https://kazan.zabravih.org`
 
 ```
 rose-valley-Zabravih/
-├── deploy/               ← nginx, gunicorn, next.js systemd configs
-├── frontend/             ← Next.js 16 (TypeScript, Tailwind v4, App Router)
-│   └── app/
-│       ├── components/   ← Map, MapWrapper, StatCard, DistrictList
-│       ├── lib/          ← api.ts (fetch helpers + types)
-│       ├── globals.css   ← Tailwind + Leaflet CSS + CSS variables
-│       ├── layout.tsx    ← Root layout (Manrope font, dark bg)
-│       └── page.tsx      ← Dashboard (server component)
-├── py/
-│   └── garbageCollection/
-│       ├── garbageCollection/  ← Django project (settings, urls, wsgi)
-│       └── garbageData/        ← Main app (models, views, urls, serializers, management)
-├── rpi_code/             ← Raspberry Pi camera/NFC code
-└── presentation/         ← Pitch materials
+├── deploy/                    ← nginx, gunicorn, next.js systemd configs
+├── frontend/
+│   ├── app/
+│   │   ├── components/
+│   │   │   ├── Map.tsx        ← Leaflet map (all rendering logic)
+│   │   │   ├── DashboardClient.tsx ← "use client" wrapper; holds panTarget state
+│   │   │   ├── DistrictList.tsx    ← sidebar district list
+│   │   │   └── StatCard.tsx
+│   │   ├── bin/[id]/
+│   │   │   ├── page.tsx       ← Bin detail server component
+│   │   │   └── FillChart.tsx  ← SVG fill history chart (client)
+│   │   ├── lib/api.ts         ← fetch helpers + TypeScript interfaces
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx           ← Dashboard (server component)
+│   └── public/
+│       └── sofia-districts.json ← Real OSM district boundary polygons (static)
+├── py/garbageCollection/
+│   ├── garbageCollection/     ← Django project (settings, urls, wsgi)
+│   └── garbageData/
+│       ├── models.py          ← TrashCan, FillRecord, APIKey
+│       ├── views.py           ← All DRF views
+│       ├── urls.py
+│       └── management/commands/
+│           ├── sync_sofia_bins.py     ← Grey bin upsert from Sofia API
+│           └── sync_coloured_bins.py  ← Coloured bin import from 3 CSVs
+├── scripts/
+│   └── fetch_sofia_districts.py ← Fetch OSM district polygons → public/sofia-districts.json
+├── bulecopack_colored-bins.xlsx.csv   ← CSV source files (keep at repo root)
+├── ecobulpack_colored-bins.xlsx.csv
+└── ecopack_colored-bins.xlsx.csv
 ```
-
-**Live domain:** `kazan.zabravih.org` (Cloudflare → nginx → gunicorn/Next.js)
 
 ---
 
@@ -40,184 +55,180 @@ rose-valley-Zabravih/
 | Layer | Tech | Notes |
 |---|---|---|
 | Frontend | Next.js 16.2.6, React 19, TypeScript, Tailwind v4 | App Router, Manrope font |
-| Map | Leaflet + react-leaflet | Dark tile: CARTO Dark Matter |
-| Backend | Django 5.2, DRF 3.17, gunicorn | Pure API |
-| Cache | Redis 8 (db 1) | django-redis, TTL 5min–1hr |
+| Map | Leaflet (no react-leaflet) | CARTO Dark Matter tiles |
+| Backend | Django 5.2, DRF 3.17, gunicorn | Pure API + pitch template |
+| Cache | Redis 8 (db 1) | django-redis |
 | Database | PostgreSQL (db: `main`) | localhost:5432 |
-| Node | v24.16.0 via nvm | `/home/main/.nvm/versions/node/v24.16.0/` |
-| Python env | virtualenv | `/home/main/rose-valley-Zabravih/py/env/` |
-| Server | nginx (Cloudflare origin certs) | Config in `deploy/nginx.conf` |
+| Python env | virtualenv | `py/env/` — scipy installed |
+| Server | nginx + Cloudflare origin certs | `deploy/nginx.conf` |
 
 ---
 
-## Sofia API — Key Facts
-
-Base URL: `https://your.sofia.bg/api`
-API type: PayloadCMS REST
-
-| Endpoint | Notes |
-|---|---|
-| `GET /api/city-districts` | 24 districts, IDs 1–24 |
-| `GET /api/waste-containers?where[district][equals]=N&limit=1000` | Grey bins by district |
-| `GET /api/signals/count` | **Returns HTTP 500 — broken, skip** |
-
-**Critical facts:**
-- Total grey containers: **43,511** (42,654 in DB after deduplication)
-- `location` field = **`[longitude, latitude]`** (GeoJSON order — swap when storing)
-- All containers have `status: "pending"` — this is normal
-- `district_id` on TrashCan is a plain `IntegerField` (1–24), **NOT a FK**
-
----
-
-## What is complete
+## Phases — all done through Phase 5
 
 ### ✅ Phase 1 — Model + sync
-- `TrashCan` model with 8 Sofia API fields (migration 0007 applied)
-- `sync_sofia_bins` management command — bulk upsert, pagination, retries
-- DB has **42,654 real Sofia grey bins**
-- Next.js scaffolded with Turbopack
+- `TrashCan` model (migrations 0001–0009 all applied)
+- `sync_sofia_bins` — bulk upsert from Sofia API, nightly cron at 3 AM
+- 42,662 grey bins in DB
 
-### ✅ Phase 2 — DRF REST API
-Files: `garbageData/serializers.py`, `garbageData/views.py`, `garbageData/urls.py`
+### ✅ Phase 2 — DRF API
+All endpoints in `garbageData/views.py` and `urls.py`:
 
-| Endpoint | Purpose | Cache TTL |
+| Endpoint | Cache key | TTL |
 |---|---|---|
-| `GET /api/bins/clusters/?zoom=N&north=F&south=F&east=F&west=F` | Grid-bucket clusters by zoom | Redis 10min |
-| `GET /api/bins/viewport/?north=F&south=F&east=F&west=F` | GeoJSON FeatureCollection, max 500 bins | Redis 5min |
-| `GET /api/districts/` | 24 districts with bin/active/monitored counts | Redis 1hr |
-
-Cache uses try/except — endpoints degrade gracefully without Redis.
-All existing RPi endpoints (`/api/update/`, `/api/emptied/`, `/api/trashcan/`, `/api/trashcans/`) are unchanged.
+| `GET /api/bins/clusters/` | `bins:clusters:districts:v1` | 1 hr |
+| `GET /api/bins/viewport/` | `bins:viewport:v3:{hash}` | 5 min |
+| `GET /api/bins/<id>/` | none | — |
+| `GET /api/districts/` | `bins:districts:v4` | 1 hr |
+| `GET /api/districts/boundaries/` | `bins:district_boundaries:v1` | 24 hr |
 
 ### ✅ Phase 3 — Next.js Dashboard
-**`/` — Dashboard page** (server component, fetches districts on server)
-- Top bar with logo + "Pitch Deck →" link
-- Stat strip: Total Bins, Active Bins, Monitored, Districts
-- Left sidebar: searchable district list (260px)
-- Right: full-height Leaflet map (CARTO Dark Matter tiles)
+- Server component `page.tsx` fetches districts + totals, renders stat strip + `<DashboardClient>`
+- `DashboardClient.tsx` (`"use client"`) holds `panTarget` state; clicking a district pans the map
+- `Map.tsx` — all Leaflet logic, no SSR, loaded via `dynamic(..., { ssr: false })`
 
-**Map behaviour:**
-- Zoom < 15: fetches `/api/bins/clusters/` — renders circle markers sized by count
-- Zoom ≥ 15: fetches `/api/bins/viewport/` — renders individual bin dots
-- Click cluster → zoom in by 2
-- Click bin → popup with fill level, status, district
+### ✅ Phase 4 — Coloured bins
+- **4,599 coloured bins** in DB (paper: 669, recycling: 2,015, glass: 1,915)
+- Source: 3 CSV files at repo root — bulecopack, ecobulpack, ecopack
+- Stable hash IDs in 100M–999M range (never collide with grey bin IDs < 100K)
+- `sync_coloured_bins --clear` wipes and reimports; `--dry-run` to preview
+- Nightly cron at 3:30 AM (idempotent)
 
-**`/pitch/` — Pitch deck** (Django template, served by gunicorn)
-- All-dark theme, single blue/sky accent, consistent 16px radius
-- 7 slides: Problem, Solution, Market, Why Us, Finance, Ask, Closing
-
-### ✅ Phase 4 — Cron + coloured bins command
-Nightly cron jobs (in crontab):
-```
-0  3 * * *  sync_sofia_bins   → /var/log/sofia-sync.log   (updates grey bins)
-30 3 * * *  sync_coloured_bins → /var/log/sofia-sync.log  (⚠ needs real URLs — see below)
-```
-
-`sync_coloured_bins` command exists at `garbageData/management/commands/sync_coloured_bins.py`
-but the CKAN resource IDs in SOURCES are **placeholder guesses** — needs real URLs from
-https://urbandata.sofia.bg/dataset/separate-collection before it will work.
-
----
-
-## Grey bins sync logic
-
-`sync_sofia_bins` does a **upsert** (create or update) keyed on Sofia bin ID:
-- First run: use `--clear` flag to wipe 250 fake bins from initial setup
-- Subsequent runs (including nightly cron): run without `--clear`
-- Safe to run repeatedly — won't duplicate data
-- Updates coordinates, status, district, lastCleaned if the bin already exists
+### ✅ Phase 5 — Map polish + bin detail
+- **Bin detail page** `/bin/[id]` — address, district, capacity, last cleaned, fill history
+- **FillChart** — pure SVG, no charting library
+- **Map rendering:**
+  - Zoom < 13: district-level clusters (one trash can icon per district at centroid, 16px)
+  - Zoom 13–15: individual bins as circle/compound dot markers
+  - Zoom ≥ 16: grey bins with bin_count > 1 expand to N dots (max 6 + overflow label)
+  - Coloured bins grouped by exact coordinate (co-located bins → compound pill of coloured dots)
+  - Grey bin bin_count > 1 at zoom < 16 → single dot; at zoom ≥ 16 → expanded dots
+- **District boundaries** — real OSM polygon outlines loaded from `/sofia-districts.json`
+  (non-interactive, faint blue fill + 2px border, pure background)
+- **Colours:**
+  - Paper: `#818CF8` (blue-purple)
+  - Recycling: `#FBBF24` (yellow)
+  - Glass: `#34D399` (green)
+  - Grey with fill: green→yellow→orange→red by fill %
+- **Atomic marker swap** — old markers stay visible during fetch, replaced only when new data arrives
+- **Request deduplication** — `requestId` counter discards stale responses on rapid pan/zoom
+- **Timestamps** displayed in `Europe/Sofia` timezone via `Intl.DateTimeFormat`
 
 ---
 
-## ⚠ Coloured bins — action needed
+## TrashCan model fields
 
-The `sync_coloured_bins` command needs **real resource IDs** from the Sofia open data portal.
+```python
+id              IntegerField   # Sofia API ID for grey; hash-based for coloured
+latitude        FloatField
+longitude       FloatField
+public_number   CharField(120) # Street address
+district_id     IntegerField   # 1–24, plain integer NOT a FK
+district_name   CharField
+waste_type      CharField      # 'general' | 'paper' | 'recycling' | 'glass'
+bin_status      CharField      # 'pending' (grey) | 'active' (coloured)
+capacity_volume FloatField     # m³ (e.g. 1.1 m³ = 1100 L). 0.11 is a real value.
+bin_count       IntegerField   # physical bins at this location
+last_cleaned    DateTimeField  # from Sofia API (UTC)
+container_type  CharField(20)  # 'iglu' | 'bobar' | '' (grey bins)
+```
 
-1. Go to https://urbandata.sofia.bg/dataset/separate-collection
-2. Find each dataset (blue/yellow recycling bins, green organic bins, etc.)
-3. Click "Explore" → copy the CSV download URL or CKAN resource ID
-4. Update the `SOURCES` list in `sync_coloured_bins.py`
+Migrations applied: 0001–0009 (0009 adds `container_type`).
 
-Until this is done, the command will log "Failed — skipping" for every source.
+---
+
+## Map zoom behaviour
+
+| Zoom | Mode | What's shown |
+|---|---|---|
+| < 13 | Clusters | 24 district trash-can icons at district centroids |
+| 13–15 | Viewport | Individual bin markers (single dot or compound pill) |
+| ≥ 16 | Viewport (expanded) | Grey multi-bin locations expand from 1 dot to N dots |
+
+`VIEWPORT_ZOOM = 13`, `EXPAND_ZOOM = 16` in `Map.tsx`.
+
+---
+
+## District boundaries — static file
+
+`frontend/public/sofia-districts.json` — GeoJSON FeatureCollection of all 24 Sofia districts.
+Fetched from OpenStreetMap Overpass API by `scripts/fetch_sofia_districts.py`.
+
+**OSM relation IDs** (if you need to re-fetch):
+```
+Банкя=17759044, Витоша=3759447, Връбница=3759448, Възраждане=3759446
+Искър=3759427, Илинден=3759426, Изгрев=3759428, Красна поляна=3759429
+Красно село=3759430, Кремиковци=3759431, Лозенец=3759433, Люлин=3759432
+Младост=3759434, Надежда=3759435, Нови Искър=17758558, Оборище=3759437
+Овча купел=3759438, Панчарево=3759439, Подуяне=3759440, Сердика=3759441
+Слатина=3759442, Средец=3759443, Студентски=3759444, Триадица=3759445
+```
+
+Only re-run the script if OSM district boundaries change (rare).
+
+---
+
+## Cron jobs
+
+```
+0  2 * * *  update_predictions   → /var/log/garbage_predictions.log
+0  2 * * 0  cleanup_old_records --days 90
+0  3 * * *  sync_sofia_bins      → /var/log/sofia-sync.log
+30 3 * * *  sync_coloured_bins   → /var/log/sofia-sync.log
+```
 
 ---
 
 ## Services
 
 ```bash
-# Check status
 systemctl status gunicorn next nginx redis-server
 
-# Restart all (use massiveRestart alias — builds Next.js too)
+# Rebuild Next.js + restart all (requires sudo, needs source ~/.bashrc first):
 massiveRestart
-
-# Manual service control (needs sudo)
-sudo systemctl restart gunicorn
-sudo systemctl restart next
-sudo systemctl reload nginx
 ```
-
-**Current process:** Next.js runs as a background `nohup npm start` process because
-the systemd `next.service` was copied but never enabled/started. To make it
-persistent across reboots:
-```bash
-sudo systemctl enable next
-sudo systemctl start next
-```
-Then kill the background process and let the service take over.
 
 ---
 
 ## What still needs to be done
 
-### Immediate
-- [ ] Run `sudo systemctl enable next && sudo systemctl start next` to make Next.js
-      persistent (currently running as background process PID ~40584)
-- [ ] Get real coloured bins CSV URLs from urbandata.sofia.bg and update `sync_coloured_bins.py`
+### Phase 6 (not started)
+- [ ] Route visualisation on map (polylines from `/api/route/`)
+- [ ] Heatmap overlay toggle
+- [ ] Truck assignment / district-company mapping UI
+- [ ] Fill rate prediction display
 
-### Phase 4 remaining
-- [ ] PostGIS (optional, for polygon queries): `sudo apt-get install postgresql-postgis`,
-      then `CREATE EXTENSION postgis;` in psql, then swap lat/lon FloatFields for PointField
-- [ ] Import coloured bins once `sync_coloured_bins.py` has real URLs
-
-### Phase 5 (not started)
-- Bin detail page: `/bin/[id]` in Next.js
-- Fill history chart per bin
-- Route visualisation on map (polylines from `/api/route/`)
-- Heatmap overlay toggle
+### Known gaps
+- `last_emptied` (our RPi field) is never set for grey bins — only meaningful for future monitored bins
+- `/api/districts/boundaries/` endpoint (convex hull) still exists but is superseded by the static file
+- Sofia API `status: "pending"` for all grey bins is a Sofia API quirk, not a bug
 
 ---
 
 ## Commands cheat sheet
 
 ```bash
-# Activate virtualenv
+# Activate Python env
 source /home/main/rose-valley-Zabravih/py/env/bin/activate
 cd /home/main/rose-valley-Zabravih/py/garbageCollection
 
-# Run full data sync (updates/creates, safe to repeat)
-python manage.py sync_sofia_bins
+# Sync data
+python manage.py sync_sofia_bins                    # nightly upsert
+python manage.py sync_coloured_bins --clear         # wipe + reimport coloured
 
-# First-time only (wipes 250 fake bins)
-python manage.py sync_sofia_bins --clear
+# Flush Redis caches
+python manage.py shell -c "from django.core.cache import cache; cache.delete_pattern('bins:*')"
 
-# Coloured bins (needs real URLs in SOURCES first)
-python manage.py sync_coloured_bins --dry-run
-python manage.py sync_coloured_bins
-
-# Django check / runserver
-python manage.py check
-python manage.py runserver
+# Re-fetch district boundaries from OSM
+python /home/main/rose-valley-Zabravih/scripts/fetch_sofia_districts.py
 
 # Next.js dev
 cd /home/main/rose-valley-Zabravih/frontend
 export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh"
-npm run dev    # http://localhost:3000
+npm run dev
 
-# Push to git
-cd /home/main/rose-valley-Zabravih
-git add <files> && git commit -m "message"
-git push
+# Deploy
+massiveRestart   # (must source ~/.bashrc first in a new terminal)
 ```
 
 ---
@@ -225,14 +236,13 @@ git push
 ## Known issues / gotchas
 
 1. **`district_id` is NOT a FK** — use `filter(district_id=1)` not `filter(district=1)`
-2. **All bins are `status: pending`** — Sofia hasn't activated them; filter by `bin_status`
+2. **All grey bins are `status: "pending"`** — Sofia API quirk, not a bug
 3. **`/api/signals/count`** returns HTTP 500 — don't use it
-4. **`lib/` in .gitignore** — root `.gitignore` has `lib/` which was catching `frontend/app/lib/`.
-   Fixed with `!frontend/app/lib/` exception.
-5. **`ssr: false` in Server Components** — not allowed in Next.js 16. Always wrap Leaflet
-   (or any browser-only dynamic import) in a `"use client"` wrapper component.
-6. **`font-weight: 900`** — Manrope via `next/font/google` only supports up to 800.
-7. **CSRF** — DRF public GET endpoints use `AllowAny` with no auth. RPi endpoints
-   use `X-API-Key` header auth.
-8. **Cloudflare** — `real_ip_header CF-Connecting-IP` in nginx; don't change.
-9. **gunicorn workers = 17** — tuned for this server; keep unless hardware changes.
+4. **`capacity_volume = 0.11`** — real value from Sofia API, not a data error
+5. **`API_INTERNAL` is server-only** — never call it from client-side code (causes browser permission prompt). Use `API_BASE` in Map.tsx and any client component.
+6. **`massiveRestart` needs `source ~/.bashrc`** in a fresh terminal before it's available
+7. **`ssr: false` in `dynamic()`** must be inside a `"use client"` component
+8. **Manrope font** max weight 800 (not 900)
+9. **Coloured bin IDs** in 100M–999M range; grey bin IDs are small integers from Sofia API
+10. **`SECURE_SSL_REDIRECT = False`** — nginx handles SSL, gunicorn is HTTP-only; do not change
+11. **Cache key versions** — bump suffix when API response schema changes: `bins:viewport:v3`, `bins:districts:v4`

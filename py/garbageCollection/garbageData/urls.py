@@ -20,5 +20,7 @@ urlpatterns = [
     # Phase 2: public DRF endpoints for Next.js frontend
     path('api/bins/clusters/', views.BinClustersView.as_view(), name='bins_clusters'),
     path('api/bins/viewport/', views.BinViewportView.as_view(), name='bins_viewport'),
+    path('api/bins/<int:bin_id>/', views.BinDetailView.as_view(), name='bin_detail'),
     path('api/districts/', views.DistrictsView.as_view(), name='districts'),
+    path('api/districts/boundaries/', views.DistrictBoundariesView.as_view(), name='district_boundaries'),
 ]
